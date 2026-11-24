@@ -1,0 +1,300 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    /* Hospital Pro Light Healthcare Tokens (High-Contrast Deep Blue) */
+    --hp-primary: #0D4EA6;
+    --hp-dark-blue: #083578;
+    --hp-light-blue: #DCEBFF;
+    --hp-white: #FFFFFF;
+    --hp-bg: #EEF4FB;
+    --hp-text: #0F172A;
+    --hp-text-secondary: #334155;
+    --hp-border: #C7D6E8;
+
+    --accent-50: #DCEBFF;
+    --accent-100: #C2DCFF;
+    --accent-500: #0D4EA6;
+    --accent-600: #083578;
+    --accent-ring: rgba(13, 78, 166, 0.34);
+    --sel-bg: #D2E5FF;
+    --sel-border: rgba(13, 78, 166, 0.58);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    color: var(--hp-text);
+    background-color: var(--hp-bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html.dark {
+    color: #F1F5F9;
+    background-color: #0B1220;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono, td.time-cell, .tabular-nums {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Accessible clinical checkbox */
+.xq-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid #64748B;
+  background-color: #FFFFFF;
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: background-color 140ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 140ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 100ms ease;
+}
+
+.dark .xq-checkbox {
+  border-color: #94A3B8;
+  background-color: #0F172A;
+}
+
+.xq-checkbox:hover:not(:disabled):not(:checked) {
+  border-color: var(--accent-500);
+  background-color: var(--accent-50);
+}
+
+.xq-checkbox::after {
+  content: "";
+  width: 11px;
+  height: 6px;
+  border-left: 2.5px solid #FFFFFF;
+  border-bottom: 2.5px solid #FFFFFF;
+  transform: rotate(-45deg) scale(0);
+  margin-top: -2px;
+  transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.xq-checkbox:checked {
+  background-color: var(--accent-500);
+  border-color: var(--accent-500);
+}
+
+.xq-checkbox:checked::after {
+  transform: rotate(-45deg) scale(1);
+}
+
+.xq-checkbox:active:not(:disabled) {
+  transform: scale(0.93);
+}
+
+.xq-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.xq-checkbox:focus-visible {
+  outline: 3px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* Schedule table half-row hover highlight (Morning OR Afternoon based on mouse position) */
+table.xq-print-table tbody tr {
+  background-color: #FFFFFF;
+}
+
+.dark table.xq-print-table tbody tr {
+  background-color: #0F172A;
+}
+
+table.xq-print-table tbody tr td {
+  transition: background-color 110ms ease, box-shadow 110ms ease, color 110ms ease;
+}
+
+/* Hovering Morning half */
+table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-cell {
+  background-color: #DCEBFF !important;
+  box-shadow: inset 0 1px 0 rgba(13, 78, 166, 0.42), inset 0 -1px 0 rgba(13, 78, 166, 0.42);
+}
+
+table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-start {
+  box-shadow: inset 3px 0 0 #0D4EA6, inset 0 1px 0 rgba(13, 78, 166, 0.42), inset 0 -1px 0 rgba(13, 78, 166, 0.42);
+}
+
+table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-pick {
+  box-shadow: inset -1px 0 0 rgba(13, 78, 166, 0.36), inset 0 1px 0 rgba(13, 78, 166, 0.42), inset 0 -1px 0 rgba(13, 78, 166, 0.42);
+}
+
+table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-cell[data-selected="true"] {
+  background-color: #BFD9FF !important;
+  box-shadow: inset 0 0 0 1.5px var(--accent-500) !important;
+}
+
+table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-cell[data-now="true"] {
+  background-color: #FEF3C7 !important;
+  box-shadow: inset 0 0 0 2px #D97706 !important;
+}
+
+/* Hovering Afternoon half */
+table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell {
+  background-color: #DCEBFF !important;
+  box-shadow: inset 0 1px 0 rgba(13, 78, 166, 0.42), inset 0 -1px 0 rgba(13, 78, 166, 0.42);
+}
+
+table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-start {
+  box-shadow: inset 3px 0 0 #0D4EA6, inset 0 1px 0 rgba(13, 78, 166, 0.42), inset 0 -1px 0 rgba(13, 78, 166, 0.42);
+}
+
+table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-pick {
+  box-shadow: inset -1px 0 0 rgba(13, 78, 166, 0.36), inset 0 1px 0 rgba(13, 78, 166, 0.42), inset 0 -1px 0 rgba(13, 78, 166, 0.42);
+}
+
+table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell[data-selected="true"] {
+  background-color: #BFD9FF !important;
+  box-shadow: inset 0 0 0 1.5px var(--accent-500) !important;
+}
+
+table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell[data-now="true"] {
+  background-color: #FEF3C7 !important;
+  box-shadow: inset 0 0 0 2px #D97706 !important;
+}
+
+/* Dark mode half-row hover */
+.dark table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-cell,
+.dark table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell {
+  background-color: rgba(30, 58, 138, 0.42) !important;
+  box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.38), inset 0 -1px 0 rgba(56, 189, 248, 0.38);
+}
+
+.dark table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-start,
+.dark table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-start {
+  box-shadow: inset 3px 0 0 #38BDF8, inset 0 1px 0 rgba(56, 189, 248, 0.38), inset 0 -1px 0 rgba(56, 189, 248, 0.38);
+}
+
+.dark table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-cell[data-selected="true"],
+.dark table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell[data-selected="true"] {
+  background-color: rgba(14, 116, 144, 0.42) !important;
+  box-shadow: inset 0 0 0 1.5px #38BDF8 !important;
+}
+
+.dark table.xq-print-table tbody tr:has(td.xq-m-cell:hover) td.xq-m-cell[data-now="true"],
+.dark table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell[data-now="true"] {
+  background-color: rgba(120, 53, 15, 0.55) !important;
+  box-shadow: inset 0 0 0 2px #FBBF24 !important;
+}
+
+/* Print optimization for A4 clinical schedule */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  html,
+  body,
+  #root {
+    background: #FFFFFF !important;
+    color: #0F172A !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-root {
+    display: block !important;
+    min-height: auto !important;
+    height: auto !important;
+    background: #FFFFFF !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-card-shell {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    background: #FFFFFF !important;
+  }
+
+  .print-table-wrap {
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    border: 1px solid #94A3B8 !important;
+  }
+
+  table.xq-print-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 11px !important;
+    border-collapse: collapse !important;
+  }
+
+  table.xq-print-table col.print-show-col {
+    display: table-column !important;
+  }
+
+  table.xq-print-table th.print-show-col,
+  table.xq-print-table td.print-show-col {
+    display: table-cell !important;
+  }
+
+  table.xq-print-table th,
+  table.xq-print-table td {
+    padding: 3.5px 5px !important;
+    border-color: #94A3B8 !important;
+    color: #0F172A !important;
+  }
+
+  table.xq-print-table td:not([data-selected="true"]) {
+    background: transparent !important;
+  }
+
+  table.xq-print-table td[data-selected="true"] {
+    background-color: #D2E5FF !important;
+    box-shadow: none !important;
+  }
+
+  table.xq-print-table thead th {
+    position: static !important;
+    background: #DCEBFF !important;
+    color: #083578 !important;
+  }
+
+  .xq-checkbox {
+    width: 15px !important;
+    height: 15px !important;
+    border-width: 1.5px !important;
+  }
+
+  .xq-checkbox:checked {
+    background-color: #0D4EA6 !important;
+    border-color: #0D4EA6 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

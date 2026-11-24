@@ -1,0 +1,6 @@
+{
+  "name": "Hospital Pro – Quản lý lịch giờ chụp X-quang",
+  "description": "Hệ thống quản lý lịch giờ chụp X-quang theo từng máy (TITAN 2000 & DR GEM), đồng bộ thời gian thực giờ Việt Nam và lưu trữ an toàn.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
