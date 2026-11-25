@@ -231,14 +231,22 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  const syncInFlightRef = useRef(false);
+  const silentFailStreakRef = useRef(0);
+
   // ===== Load states from backend =====
   const loadDateStates = useCallback(async (dk: string, silent = false) => {
+    if (silent && syncInFlightRef.current) {
+      return;
+    }
+    syncInFlightRef.current = true;
     if (!silent) {
       setLoadingStates(true);
       setLoadError(null);
     }
     try {
       const data = await fetchStatesForDate(dk);
+      silentFailStreakRef.current = 0;
       if (typeof data?.today === 'string' && data.today) {
         setTodayKey(data.today);
       }
@@ -304,12 +312,15 @@ export default function App() {
       }
       setLoadError(null);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Không thể kết nối máy chủ để tải dữ liệu lịch.';
-      if (!silent) {
+      if (silent) {
+        silentFailStreakRef.current = Math.min(silentFailStreakRef.current + 1, 3);
+      } else {
+        const msg =
+          err instanceof Error ? err.message : 'Không thể kết nối máy chủ để tải dữ liệu lịch.';
         setLoadError(msg);
       }
     } finally {
+      syncInFlightRef.current = false;
       if (!silent) setLoadingStates(false);
     }
   }, []);
@@ -359,18 +370,37 @@ export default function App() {
     };
   }, [loadDateStates]);
 
-  // Periodic background sync (every 15s + on window focus)
+  // Periodic background sync (15-19s jittered + exponential backoff on error + focus sync)
   useEffect(() => {
-    const sync = () => {
+    let timerId: number | null = null;
+    let cancelled = false;
+
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const streak = silentFailStreakRef.current;
+      const baseMs = streak === 0 ? 15_000 : Math.min(60_000, 15_000 * Math.pow(2, streak));
+      const jitterMs = Math.floor(Math.random() * 4_000);
+      timerId = window.setTimeout(async () => {
+        if (cancelled) return;
+        if (document.visibilityState === 'visible') {
+          await loadDateStates(viewedDateKey, true);
+        }
+        scheduleNext();
+      }, baseMs + jitterMs);
+    };
+
+    const handleFocus = () => {
       if (document.visibilityState === 'visible') {
         void loadDateStates(viewedDateKey, true);
       }
     };
-    const interval = setInterval(sync, 15000);
-    window.addEventListener('focus', sync);
+
+    scheduleNext();
+    window.addEventListener('focus', handleFocus);
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', sync);
+      cancelled = true;
+      if (timerId !== null) window.clearTimeout(timerId);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [viewedDateKey, loadDateStates]);
 

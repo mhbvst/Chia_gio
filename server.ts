@@ -14,6 +14,7 @@ import {
   deleteStateForDay,
   getStorageMode,
   initStorage,
+  pingPostgres,
   readAuthConfig,
   readSettingsRecord,
   readSingleState,
@@ -223,8 +224,22 @@ async function startServer() {
 
   app.use(express.json({ limit: '64kb' }));
 
-  app.get('/healthz', (_req, res) => {
-    res.json({ ok: true, storage: getStorageMode() });
+  app.get('/healthz', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.query.db === '1') {
+      try {
+        await pingPostgres();
+      } catch (err) {
+        console.error('Healthz DB check failed:', err instanceof Error ? err.message : err);
+        res.status(503).json({ ok: false, storage: getStorageMode() });
+        return;
+      }
+    }
+    res.json({
+      ok: true,
+      storage: getStorageMode(),
+      uptimeSec: Math.round(process.uptime()),
+    });
   });
 
   // GET /api/today

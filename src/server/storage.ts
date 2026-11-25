@@ -158,8 +158,37 @@ function writeJsonAuthConfig(password: string): AuthConfig {
   return payload;
 }
 
-// ===== PostgreSQL (Neon) Pool =====
+// ===== PostgreSQL (Neon) Pool & Peak-Load Read Coalescing =====
 let pgPool: Pool | null = null;
+
+const SETTINGS_CACHE_TTL_MS = 5_000;
+const BUNDLE_CACHE_TTL_MS = 2_000;
+
+let settingsCache: { value: SettingsRecord; expiresAt: number } | null = null;
+let settingsWriteGen = 0;
+let inflightSettingsRead: Promise<SettingsRecord> | null = null;
+
+const bundleCache = new Map<string, { value: { settingsRec: SettingsRecord; recordsByMachine: Record<string, MachineDayRecord> }; expiresAt: number }>();
+const bundleWriteGen = new Map<string, number>();
+const inflightBundleReads = new Map<string, Promise<{ settingsRec: SettingsRecord; recordsByMachine: Record<string, MachineDayRecord> }>>();
+
+function invalidateBundleCache(dateKey?: string): void {
+  if (dateKey) {
+    bundleCache.delete(dateKey);
+    bundleWriteGen.set(dateKey, (bundleWriteGen.get(dateKey) || 0) + 1);
+  } else {
+    bundleCache.clear();
+    bundleWriteGen.clear();
+    settingsWriteGen += 1;
+    settingsCache = null;
+  }
+}
+
+export async function pingPostgres(): Promise<boolean> {
+  if (!pgPool) return true;
+  await pgPool.query('SELECT 1');
+  return true;
+}
 
 function resolvePgSslConfig(connectionString: string): false | { rejectUnauthorized: boolean } {
   if ((process.env.PGSSL || '').trim().toLowerCase() === 'disable') {
@@ -211,9 +240,11 @@ export async function initStorage(): Promise<'postgres' | 'json'> {
 
   const pool = new Pool({
     connectionString: dbUrl,
-    max: 10,
+    max: 15,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 15_000,
+    statement_timeout: 10_000,
+    keepAlive: true,
     ssl: resolvePgSslConfig(dbUrl),
   });
 
@@ -392,23 +423,42 @@ async function readSettingsWithClient(client: PoolClient): Promise<SettingsRecor
 
 export async function readSettingsRecord(): Promise<SettingsRecord> {
   if (pgPool) {
-    const res = await pgPool.query<{ settings: unknown; updated_at: Date | string }>(
-      'SELECT settings, updated_at FROM app_settings WHERE id = $1',
-      ['default']
-    );
-    const row = res.rows[0];
-    if (!row) {
-      return { settings: { ...DEFAULT_SCHEDULE_SETTINGS }, updatedAt: null };
+    const now = Date.now();
+    if (settingsCache && settingsCache.expiresAt > now) {
+      return settingsCache.value;
     }
-    const clean = sanitizeScheduleSettings(row.settings);
-    if (!clean) {
-      return { settings: { ...DEFAULT_SCHEDULE_SETTINGS }, updatedAt: null };
+    if (inflightSettingsRead) {
+      return inflightSettingsRead;
     }
-    return {
-      settings: clean,
-      updatedAt:
-        row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
-    };
+    const startGen = settingsWriteGen;
+    const req = (async () => {
+      const res = await pgPool!.query<{ settings: unknown; updated_at: Date | string }>(
+        'SELECT settings, updated_at FROM app_settings WHERE id = $1',
+        ['default']
+      );
+      const row = res.rows[0];
+      const clean = row ? sanitizeScheduleSettings(row.settings) : null;
+      const value: SettingsRecord =
+        row && clean
+          ? {
+              settings: clean,
+              updatedAt:
+                row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+            }
+          : { settings: { ...DEFAULT_SCHEDULE_SETTINGS }, updatedAt: null };
+      if (settingsWriteGen === startGen) {
+        settingsCache = { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS };
+      }
+      return value;
+    })();
+    inflightSettingsRead = req;
+    try {
+      return await req;
+    } finally {
+      if (inflightSettingsRead === req) {
+        inflightSettingsRead = null;
+      }
+    }
   }
 
   return withLock(() => readJsonSettingsRecord());
@@ -425,6 +475,7 @@ export async function writeSettingsRecord(settings: ScheduleSettings): Promise<s
              updated_at = EXCLUDED.updated_at`,
       ['default', JSON.stringify(settings), updatedAt]
     );
+    invalidateBundleCache();
     return updatedAt;
   }
 
@@ -436,26 +487,58 @@ export async function readStatesBundle(dateKey: string): Promise<{
   recordsByMachine: Record<string, MachineDayRecord>;
 }> {
   if (pgPool) {
-    const settingsRec = await readSettingsRecord();
-    const keys = settingsRec.settings.machines.map((m) => m.key);
-    const res = await pgPool.query<{
-      machine_key: string;
-      slots: unknown;
-      updated_at: Date | string;
-    }>(
-      'SELECT machine_key, slots, updated_at FROM schedule_states WHERE date_key = $1 AND machine_key = ANY($2::text[])',
-      [dateKey, keys]
-    );
-
-    const recordsByMachine: Record<string, MachineDayRecord> = {};
-    for (const row of res.rows) {
-      recordsByMachine[row.machine_key] = {
-        slots: sanitizeSlots(row.slots) || {},
-        updatedAt:
-          row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
-      };
+    const now = Date.now();
+    const cached = bundleCache.get(dateKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.value;
     }
-    return { settingsRec, recordsByMachine };
+    const inflight = inflightBundleReads.get(dateKey);
+    if (inflight) {
+      return inflight;
+    }
+
+    const startBundleGen = bundleWriteGen.get(dateKey) || 0;
+    const startSettingsGen = settingsWriteGen;
+
+    const req = (async () => {
+      const settingsRec = await readSettingsRecord();
+      const keys = settingsRec.settings.machines.map((m) => m.key);
+      const res = await pgPool!.query<{
+        machine_key: string;
+        slots: unknown;
+        updated_at: Date | string;
+      }>(
+        'SELECT machine_key, slots, updated_at FROM schedule_states WHERE date_key = $1 AND machine_key = ANY($2::text[])',
+        [dateKey, keys]
+      );
+
+      const recordsByMachine: Record<string, MachineDayRecord> = {};
+      for (const row of res.rows) {
+        recordsByMachine[row.machine_key] = {
+          slots: sanitizeSlots(row.slots) || {},
+          updatedAt:
+            row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+        };
+      }
+      const value = { settingsRec, recordsByMachine };
+      if (
+        (bundleWriteGen.get(dateKey) || 0) === startBundleGen &&
+        settingsWriteGen === startSettingsGen
+      ) {
+        if (bundleCache.size > 30) bundleCache.clear();
+        bundleCache.set(dateKey, { value, expiresAt: Date.now() + BUNDLE_CACHE_TTL_MS });
+      }
+      return value;
+    })();
+
+    inflightBundleReads.set(dateKey, req);
+    try {
+      return await req;
+    } finally {
+      if (inflightBundleReads.get(dateKey) === req) {
+        inflightBundleReads.delete(dateKey);
+      }
+    }
   }
 
   return withLock(() => {
@@ -553,6 +636,7 @@ export async function toggleSlotAtomic(
                updated_at = EXCLUDED.updated_at`,
         [machineKey, dateKey, JSON.stringify(current), updatedAt]
       );
+      invalidateBundleCache(dateKey);
       return {
         invalidMachine: false as const,
         state: current,
@@ -608,6 +692,7 @@ export async function saveFullStateAtomic(
                updated_at = EXCLUDED.updated_at`,
         [machineKey, dateKey, JSON.stringify(cleanedSlots), updatedAt]
       );
+      invalidateBundleCache(dateKey);
       return { invalidMachine: false as const, updatedAt };
     });
   }
@@ -640,6 +725,7 @@ export async function deleteStateForDay(
         'DELETE FROM schedule_states WHERE machine_key = $1 AND date_key = $2',
         [machineKey, dateKey]
       );
+      invalidateBundleCache(dateKey);
       return { invalidMachine: false };
     });
   }
