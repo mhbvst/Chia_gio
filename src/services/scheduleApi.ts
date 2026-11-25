@@ -38,15 +38,19 @@ function apiUrl(path: string): string {
 let useLocalFallback = isGithubPagesStaticHost();
 
 async function parseJson<T>(res: Response): Promise<T & { ok?: boolean; message?: string; code?: string }> {
-  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error((data as { message?: string }).message || `Lỗi máy chủ (${res.status})`) as Error & {
+    const errData = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
+    const err = new Error(errData.message || `Lỗi máy chủ (${res.status})`) as Error & {
       status?: number;
       code?: string;
     };
     err.status = res.status;
-    err.code = (data as { code?: string }).code;
+    err.code = errData.code;
     throw err;
+  }
+  const data = (await res.json()) as T & { ok?: boolean; message?: string; code?: string };
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new SyntaxError('Phản hồi JSON từ máy chủ không hợp lệ.');
   }
   return data;
 }

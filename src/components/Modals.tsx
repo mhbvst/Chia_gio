@@ -227,8 +227,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <input
               ref={inputRef}
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={password ?? ''}
+              onChange={(e) => setPassword(e.target.value ?? '')}
               placeholder="Nhập mật khẩu..."
               autoComplete="current-password"
               className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium rounded-lg border border-[#C7D6E8] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
@@ -243,8 +243,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </label>
             <input
               type="password"
-              value={confirmPwd}
-              onChange={(e) => setConfirmPwd(e.target.value)}
+              value={confirmPwd ?? ''}
+              onChange={(e) => setConfirmPwd(e.target.value ?? '')}
               placeholder="Nhập lại mật khẩu..."
               autoComplete="new-password"
               className="w-full px-3.5 py-2.5 text-sm font-medium rounded-lg border border-[#C7D6E8] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
@@ -352,8 +352,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
           </label>
           <input
             type="password"
-            value={cur}
-            onChange={(e) => setCur(e.target.value)}
+            value={cur ?? ''}
+            onChange={(e) => setCur(e.target.value ?? '')}
             className="w-full px-3.5 py-2.5 text-sm font-medium rounded-lg border border-[#C7D6E8] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
           />
         </div>
@@ -363,8 +363,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
           </label>
           <input
             type="password"
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
+            value={next ?? ''}
+            onChange={(e) => setNext(e.target.value ?? '')}
             className="w-full px-3.5 py-2.5 text-sm font-medium rounded-lg border border-[#C7D6E8] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
           />
         </div>
@@ -374,8 +374,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
           </label>
           <input
             type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
+            value={confirm ?? ''}
+            onChange={(e) => setConfirm(e.target.value ?? '')}
             className="w-full px-3.5 py-2.5 text-sm font-medium rounded-lg border border-[#C7D6E8] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
           />
         </div>

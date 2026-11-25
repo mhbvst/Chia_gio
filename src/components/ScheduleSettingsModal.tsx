@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
   KeyRound,
+  ListChecks,
   Lock,
   MonitorCog,
   Plus,
@@ -40,10 +43,57 @@ interface ScheduleSettingsModalProps {
   onOpenChangePassword: () => void;
 }
 
-function cloneSettings(s: ScheduleSettings): ScheduleSettings {
+function cloneSettings(s?: Partial<ScheduleSettings> | null): ScheduleSettings {
+  const src = s || DEFAULT_SCHEDULE_SETTINGS;
+  const machinesSource =
+    Array.isArray(src.machines) && src.machines.length > 0
+      ? src.machines
+      : DEFAULT_SCHEDULE_SETTINGS.machines;
+  const machines = machinesSource.map((m, idx) => ({
+    key: String(m?.key || `MAY_${idx + 1}`),
+    name: typeof m?.name === 'string' ? m.name : '',
+    supervisor: typeof m?.supervisor === 'string' ? m.supervisor : '',
+  }));
   return {
-    ...s,
-    machines: (s.machines || DEFAULT_SCHEDULE_SETTINGS.machines).map((m) => ({ ...m })),
+    machines,
+    firstMachine:
+      typeof src.firstMachine === 'string' && machines.some((m) => m.key === src.firstMachine)
+        ? src.firstMachine
+        : machines[0].key,
+    morningStart:
+      typeof src.morningStart === 'string'
+        ? src.morningStart
+        : DEFAULT_SCHEDULE_SETTINGS.morningStart,
+    morningEnd:
+      typeof src.morningEnd === 'string' ? src.morningEnd : DEFAULT_SCHEDULE_SETTINGS.morningEnd,
+    afternoonStart:
+      typeof src.afternoonStart === 'string'
+        ? src.afternoonStart
+        : DEFAULT_SCHEDULE_SETTINGS.afternoonStart,
+    afternoonEnd:
+      typeof src.afternoonEnd === 'string'
+        ? src.afternoonEnd
+        : DEFAULT_SCHEDULE_SETTINGS.afternoonEnd,
+    scanDuration:
+      typeof src.scanDuration === 'number' && Number.isFinite(src.scanDuration)
+        ? src.scanDuration
+        : DEFAULT_SCHEDULE_SETTINGS.scanDuration,
+    primaryInterval:
+      typeof src.primaryInterval === 'number' && Number.isFinite(src.primaryInterval)
+        ? src.primaryInterval
+        : DEFAULT_SCHEDULE_SETTINGS.primaryInterval,
+    useSecondaryInterval:
+      typeof src.useSecondaryInterval === 'boolean'
+        ? src.useSecondaryInterval
+        : DEFAULT_SCHEDULE_SETTINGS.useSecondaryInterval,
+    secondaryInterval:
+      typeof src.secondaryInterval === 'number' && Number.isFinite(src.secondaryInterval)
+        ? src.secondaryInterval
+        : DEFAULT_SCHEDULE_SETTINGS.secondaryInterval,
+    secondaryFrequency:
+      typeof src.secondaryFrequency === 'number' && Number.isFinite(src.secondaryFrequency)
+        ? src.secondaryFrequency
+        : DEFAULT_SCHEDULE_SETTINGS.secondaryFrequency,
   };
 }
 
@@ -73,6 +123,10 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [resetTargetKey, setResetTargetKey] = useState<MachineKey>(activeMachineKey);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [auditExpanded, setAuditExpanded] = useState(false);
+  const [auditTypeFilter, setAuditTypeFilter] = useState<'all' | 'start-start' | 'end-end' | 'start-end'>('all');
+  const [auditScopeFilter, setAuditScopeFilter] = useState<'all' | 'same' | 'diff'>('all');
+  const [auditSessionFilter, setAuditSessionFilter] = useState<'all' | 'm' | 'a'>('all');
 
   const savedMachines = useMemo(
     () =>
@@ -88,6 +142,10 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
       setSubmitAttempted(false);
       setResetTargetKey(activeMachineKey);
       setConfirmResetOpen(false);
+      setAuditExpanded(false);
+      setAuditTypeFilter('all');
+      setAuditScopeFilter('all');
+      setAuditSessionFilter('all');
     }
   }, [open, initialSettings, activeMachineKey]);
 
@@ -108,6 +166,37 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
   }, [open, saving, resettingMachineKey, onClose]);
 
   const analysis = useMemo(() => analyzeScheduleSettings(draft), [draft]);
+
+  const filteredAuditItems = useMemo(() => {
+    return analysis.overlapAudit.items.filter((item) => {
+      if (auditSessionFilter === 'm' && item.session === 'a') return false;
+      if (auditSessionFilter === 'a' && item.session === 'm') return false;
+
+      if (auditTypeFilter === 'start-start') {
+        if (auditScopeFilter === 'same') return item.hasStartStartSame;
+        if (auditScopeFilter === 'diff') return item.hasStartStartDiff;
+        return item.hasStartStart;
+      }
+      if (auditTypeFilter === 'end-end') {
+        if (auditScopeFilter === 'same') return item.hasEndEndSame;
+        if (auditScopeFilter === 'diff') return item.hasEndEndDiff;
+        return item.hasEndEnd;
+      }
+      if (auditTypeFilter === 'start-end') {
+        if (auditScopeFilter === 'same') return item.hasStartEndSame;
+        if (auditScopeFilter === 'diff') return item.hasStartEndDiff;
+        return item.hasStartEnd;
+      }
+
+      if (auditScopeFilter === 'same') {
+        return item.hasStartStartSame || item.hasEndEndSame || item.hasStartEndSame;
+      }
+      if (auditScopeFilter === 'diff') {
+        return item.hasStartStartDiff || item.hasEndEndDiff || item.hasStartEndDiff;
+      }
+      return true;
+    });
+  }, [analysis.overlapAudit.items, auditTypeFilter, auditScopeFilter, auditSessionFilter]);
 
   if (!open) return null;
 
@@ -419,8 +508,8 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                       <input
                         type="text"
                         maxLength={40}
-                        value={m.name}
-                        onChange={(e) => updateMachineField(idx, 'name', e.target.value)}
+                        value={m.name ?? ''}
+                        onChange={(e) => updateMachineField(idx, 'name', e.target.value ?? '')}
                         placeholder="Ví dụ: TITAN 2000"
                         className="w-full px-3 py-2 text-sm font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                       />
@@ -433,8 +522,8 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                       <input
                         type="text"
                         maxLength={60}
-                        value={m.supervisor}
-                        onChange={(e) => updateMachineField(idx, 'supervisor', e.target.value)}
+                        value={m.supervisor ?? ''}
+                        onChange={(e) => updateMachineField(idx, 'supervisor', e.target.value ?? '')}
                         placeholder="Chưa phân công"
                         className="w-full px-3 py-2 text-sm font-medium rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                       />
@@ -533,8 +622,8 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                     </span>
                     <input
                       type="time"
-                      value={draft.morningStart}
-                      onChange={(e) => setDraft((p) => ({ ...p, morningStart: e.target.value }))}
+                      value={draft.morningStart ?? ''}
+                      onChange={(e) => setDraft((p) => ({ ...p, morningStart: e.target.value ?? '' }))}
                       className="w-full px-2.5 py-2 text-sm font-mono font-bold tabular-nums rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                     />
                   </label>
@@ -544,8 +633,8 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                     </span>
                     <input
                       type="time"
-                      value={draft.morningEnd}
-                      onChange={(e) => setDraft((p) => ({ ...p, morningEnd: e.target.value }))}
+                      value={draft.morningEnd ?? ''}
+                      onChange={(e) => setDraft((p) => ({ ...p, morningEnd: e.target.value ?? '' }))}
                       className="w-full px-2.5 py-2 text-sm font-mono font-bold tabular-nums rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                     />
                   </label>
@@ -564,9 +653,9 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                     </span>
                     <input
                       type="time"
-                      value={draft.afternoonStart}
+                      value={draft.afternoonStart ?? ''}
                       onChange={(e) =>
-                        setDraft((p) => ({ ...p, afternoonStart: e.target.value }))
+                        setDraft((p) => ({ ...p, afternoonStart: e.target.value ?? '' }))
                       }
                       className="w-full px-2.5 py-2 text-sm font-mono font-bold tabular-nums rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                     />
@@ -577,8 +666,8 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                     </span>
                     <input
                       type="time"
-                      value={draft.afternoonEnd}
-                      onChange={(e) => setDraft((p) => ({ ...p, afternoonEnd: e.target.value }))}
+                      value={draft.afternoonEnd ?? ''}
+                      onChange={(e) => setDraft((p) => ({ ...p, afternoonEnd: e.target.value ?? '' }))}
                       className="w-full px-2.5 py-2 text-sm font-mono font-bold tabular-nums rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                     />
                   </label>
@@ -605,7 +694,7 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                   type="number"
                   min={1}
                   max={120}
-                  value={draft.scanDuration || ''}
+                  value={Number.isFinite(draft.scanDuration) && draft.scanDuration > 0 ? draft.scanDuration : ''}
                   onChange={(e) => updateNumber('scanDuration', e.target.value)}
                   className="w-full px-3 py-2 text-sm font-mono font-bold tabular-nums rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-[#F8FBFF] dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                 />
@@ -622,7 +711,7 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                   type="number"
                   min={1}
                   max={120}
-                  value={draft.primaryInterval || ''}
+                  value={Number.isFinite(draft.primaryInterval) && draft.primaryInterval > 0 ? draft.primaryInterval : ''}
                   onChange={(e) => updateNumber('primaryInterval', e.target.value)}
                   className="w-full px-3 py-2 text-sm font-mono font-bold tabular-nums rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-[#F8FBFF] dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                 />
@@ -642,7 +731,7 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                 </div>
                 <input
                   type="checkbox"
-                  checked={draft.useSecondaryInterval}
+                  checked={Boolean(draft.useSecondaryInterval)}
                   onChange={(e) =>
                     setDraft((p) => ({ ...p, useSecondaryInterval: e.target.checked }))
                   }
@@ -650,7 +739,7 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                 />
               </label>
 
-              {draft.useSecondaryInterval && (
+              {Boolean(draft.useSecondaryInterval) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#C7D6E8] dark:border-slate-700">
                   <label className="block">
                     <span className="block text-[11px] font-bold text-[#334155] dark:text-slate-300 mb-1">
@@ -660,7 +749,7 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                       type="number"
                       min={1}
                       max={120}
-                      value={draft.secondaryInterval || ''}
+                      value={Number.isFinite(draft.secondaryInterval) && draft.secondaryInterval > 0 ? draft.secondaryInterval : ''}
                       onChange={(e) => updateNumber('secondaryInterval', e.target.value)}
                       className="w-full px-3 py-2 text-sm font-mono font-bold tabular-nums rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                     />
@@ -673,7 +762,7 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
                       type="number"
                       min={2}
                       max={50}
-                      value={draft.secondaryFrequency || ''}
+                      value={Number.isFinite(draft.secondaryFrequency) && draft.secondaryFrequency > 0 ? draft.secondaryFrequency : ''}
                       onChange={(e) => updateNumber('secondaryFrequency', e.target.value)}
                       className="w-full px-3 py-2 text-sm font-mono font-bold tabular-nums rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 focus:outline-none focus:border-[#0D4EA6] focus:ring-2 focus:ring-[#0D4EA6]/25"
                     />
@@ -810,10 +899,324 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({
               <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-emerald-300 bg-emerald-50/90 dark:border-emerald-800/60 dark:bg-emerald-950/30 text-xs sm:text-[13px] font-semibold text-emerald-900 dark:text-emerald-200">
                 <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
                 <span>
-                  Hợp lệ: Không có ca nào bị trùng thời gian bắt đầu hoặc thời gian kết thúc giữa các máy.
+                  Hợp lệ để lưu: Không có hai ca nào cùng giờ bắt đầu hoặc cùng giờ kết thúc giữa các máy.
                 </span>
               </div>
             )}
+
+            {/* Rà soát & Đếm số giờ trùng nhau gộp tất cả các máy */}
+            <div className="p-3.5 rounded-xl border border-[#C7D6E8] dark:border-slate-800 bg-[#F8FBFF] dark:bg-slate-800/40 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ListChecks className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs sm:text-[13px] font-extrabold text-[#083578] dark:text-sky-300">
+                      Rà soát &amp; đếm số giờ trùng nhau (gộp tất cả {draft.machines.length} máy)
+                    </div>
+                    <div className="text-[11px] font-medium text-[#475569] dark:text-slate-400 font-mono tabular-nums">
+                      Tổng: {analysis.overlapAudit.uniqueOverlapTimes} mốc ({analysis.overlapAudit.totalOverlapPairs} cặp) · Sáng: {analysis.overlapAudit.morningOverlapTimes} mốc · Chiều: {analysis.overlapAudit.afternoonOverlapTimes} mốc
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setAuditExpanded((v) => !v)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-900 text-[#083578] dark:text-sky-300 hover:bg-[#DCEBFF] dark:hover:bg-slate-800 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <span>
+                    {auditExpanded
+                      ? 'Thu gọn danh sách'
+                      : `Rà soát chi tiết (${analysis.overlapAudit.uniqueOverlapTimes} mốc)`}
+                  </span>
+                  {auditExpanded ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 border border-[#C7D6E8] dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 divide-y sm:divide-y-0 sm:divide-x divide-[#E2ECF7] dark:divide-slate-800">
+                {[
+                  {
+                    key: 'start-start',
+                    title: 'Trùng thời gian bắt đầu',
+                    metrics: analysis.overlapAudit.startStart,
+                    activeColor: 'text-red-600 dark:text-red-400',
+                  },
+                  {
+                    key: 'end-end',
+                    title: 'Trùng thời gian kết thúc',
+                    metrics: analysis.overlapAudit.endEnd,
+                    activeColor: 'text-red-600 dark:text-red-400',
+                  },
+                  {
+                    key: 'start-end',
+                    title: 'Bắt đầu trùng kết thúc',
+                    metrics: analysis.overlapAudit.startEnd,
+                    activeColor: 'text-amber-700 dark:text-amber-400',
+                  },
+                ].map((cat) => (
+                  <div key={cat.key} className="px-3.5 py-2.5 space-y-1.5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#475569] dark:text-slate-400">
+                        {cat.title}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span
+                        className={`text-lg font-extrabold font-mono tabular-nums ${
+                          cat.metrics.timeCount > 0
+                            ? cat.activeColor
+                            : 'text-emerald-700 dark:text-emerald-400'
+                        }`}
+                      >
+                        {cat.metrics.timeCount} mốc
+                      </span>
+                      <span className="text-[11px] font-mono tabular-nums text-[#64748B] dark:text-slate-400">
+                        {cat.metrics.pairCount} cặp
+                      </span>
+                    </div>
+                    <div className="pt-1.5 border-t border-[#E2ECF7] dark:border-slate-800 space-y-0.5 text-[11px] font-mono tabular-nums">
+                      <div className="flex items-center justify-between gap-2 text-[#334155] dark:text-slate-300">
+                        <span className="font-sans font-semibold text-[#64748B] dark:text-slate-400">
+                          Cùng máy:
+                        </span>
+                        <span className="font-bold">
+                          {cat.metrics.sameMachineTimeCount} mốc ({cat.metrics.sameMachinePairCount} cặp)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[#334155] dark:text-slate-300">
+                        <span className="font-sans font-semibold text-[#64748B] dark:text-slate-400">
+                          Khác máy:
+                        </span>
+                        <span className="font-bold">
+                          {cat.metrics.diffMachineTimeCount} mốc ({cat.metrics.diffMachinePairCount} cặp)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {auditExpanded && (
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-[#E6EFFA] dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setAuditTypeFilter('all')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                          auditTypeFilter === 'all'
+                            ? 'bg-white dark:bg-slate-800 text-[#083578] dark:text-sky-300 shadow-xs'
+                            : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                        }`}
+                      >
+                        Tất cả ({analysis.overlapAudit.uniqueOverlapTimes})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAuditTypeFilter('start-start')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                          auditTypeFilter === 'start-start'
+                            ? 'bg-white dark:bg-slate-800 text-red-700 dark:text-red-300 shadow-xs'
+                            : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                        }`}
+                      >
+                        Trùng BĐ ({analysis.overlapAudit.startStart.timeCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAuditTypeFilter('end-end')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                          auditTypeFilter === 'end-end'
+                            ? 'bg-white dark:bg-slate-800 text-red-700 dark:text-red-300 shadow-xs'
+                            : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                        }`}
+                      >
+                        Trùng KT ({analysis.overlapAudit.endEnd.timeCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAuditTypeFilter('start-end')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                          auditTypeFilter === 'start-end'
+                            ? 'bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-300 shadow-xs'
+                            : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                        }`}
+                      >
+                        BĐ ↔ KT ({analysis.overlapAudit.startEnd.timeCount})
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 p-1 rounded-lg bg-[#E6EFFA] dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setAuditScopeFilter('all')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                            auditScopeFilter === 'all'
+                              ? 'bg-white dark:bg-slate-800 text-[#083578] dark:text-sky-300 shadow-xs'
+                              : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                          }`}
+                        >
+                          Cùng &amp; khác máy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAuditScopeFilter('same')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                            auditScopeFilter === 'same'
+                              ? 'bg-white dark:bg-slate-800 text-[#083578] dark:text-sky-300 shadow-xs'
+                              : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                          }`}
+                        >
+                          Cùng máy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAuditScopeFilter('diff')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                            auditScopeFilter === 'diff'
+                              ? 'bg-white dark:bg-slate-800 text-[#083578] dark:text-sky-300 shadow-xs'
+                              : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                          }`}
+                        >
+                          Khác máy
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1 p-1 rounded-lg bg-[#E6EFFA] dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setAuditSessionFilter('all')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                            auditSessionFilter === 'all'
+                              ? 'bg-white dark:bg-slate-800 text-[#083578] dark:text-sky-300 shadow-xs'
+                              : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                          }`}
+                        >
+                          Cả ngày
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAuditSessionFilter('m')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                            auditSessionFilter === 'm'
+                              ? 'bg-white dark:bg-slate-800 text-[#083578] dark:text-sky-300 shadow-xs'
+                              : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                          }`}
+                        >
+                          Sáng
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAuditSessionFilter('a')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                            auditSessionFilter === 'a'
+                              ? 'bg-white dark:bg-slate-800 text-[#083578] dark:text-sky-300 shadow-xs'
+                              : 'text-[#475569] dark:text-slate-400 hover:text-[#0F172A]'
+                          }`}
+                        >
+                          Chiều
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredAuditItems.length === 0 ? (
+                    <div className="p-4 rounded-lg border border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900 text-center text-xs font-medium text-[#475569] dark:text-slate-400">
+                      Không có mốc giờ trùng nào khớp bộ lọc đang chọn.
+                    </div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto rounded-lg border border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead className="sticky top-0 z-10 bg-[#EEF4FB] dark:bg-slate-800 text-[11px] font-extrabold text-[#083578] dark:text-sky-300 border-b border-[#C7D6E8] dark:border-slate-700">
+                          <tr>
+                            <th className="py-2 px-3 whitespace-nowrap">Mốc giờ</th>
+                            <th className="py-2 px-2.5 whitespace-nowrap">Buổi</th>
+                            <th className="py-2 px-2.5 whitespace-nowrap">Loại trùng &amp; Phạm vi</th>
+                            <th className="py-2 px-2.5">Ca bắt đầu tại mốc này</th>
+                            <th className="py-2 px-3">Ca kết thúc tại mốc này</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#E2ECF7] dark:divide-slate-800">
+                          {filteredAuditItems.map((item) => {
+                            const describeScope = (same: boolean, diff: boolean) => {
+                              if (same && diff) return 'Cùng máy, Khác máy';
+                              if (same) return 'Cùng máy';
+                              return 'Khác máy';
+                            };
+                            const lines: { text: string; tone: 'red' | 'amber' }[] = [];
+                            if (item.hasStartStart) {
+                              lines.push({
+                                text: `Trùng BĐ (${describeScope(item.hasStartStartSame, item.hasStartStartDiff)})`,
+                                tone: 'red',
+                              });
+                            }
+                            if (item.hasEndEnd) {
+                              lines.push({
+                                text: `Trùng KT (${describeScope(item.hasEndEndSame, item.hasEndEndDiff)})`,
+                                tone: 'red',
+                              });
+                            }
+                            if (item.hasStartEnd) {
+                              lines.push({
+                                text: `BĐ ↔ KT (${describeScope(item.hasStartEndSame, item.hasStartEndDiff)})`,
+                                tone: 'amber',
+                              });
+                            }
+
+                            return (
+                              <tr
+                                key={item.timeMin}
+                                className="hover:bg-[#F8FBFF] dark:hover:bg-slate-800/40 align-top"
+                              >
+                                <td className="py-2 px-3 font-mono font-extrabold tabular-nums text-[#0F172A] dark:text-slate-100 whitespace-nowrap">
+                                  {item.time}
+                                </td>
+                                <td className="py-2 px-2.5 text-[#334155] dark:text-slate-300 whitespace-nowrap">
+                                  {item.sessionLabel}
+                                </td>
+                                <td className="py-2 px-2.5 font-bold whitespace-nowrap space-y-0.5 text-[11px]">
+                                  {lines.map((ln, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={
+                                        ln.tone === 'red'
+                                          ? 'text-red-700 dark:text-red-400'
+                                          : 'text-amber-700 dark:text-amber-400'
+                                      }
+                                    >
+                                      {ln.text}
+                                    </div>
+                                  ))}
+                                </td>
+                                <td className="py-2 px-2.5 text-[#0F172A] dark:text-slate-200 font-mono tabular-nums text-[11px]">
+                                  {item.startSlots.length > 0
+                                    ? item.startSlots
+                                        .map((s) => `${s.machineName} (STT ${s.stt})`)
+                                        .join(', ')
+                                    : '—'}
+                                </td>
+                                <td className="py-2 px-3 text-[#475569] dark:text-slate-400 font-mono tabular-nums text-[11px]">
+                                  {item.endSlots.length > 0
+                                    ? item.endSlots
+                                        .map((s) => `${s.machineName} (STT ${s.stt})`)
+                                        .join(', ')
+                                    : '—'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </section>
 
           {/* Footer actions */}

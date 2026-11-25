@@ -39,6 +39,61 @@ export interface ScheduleCollision {
   slots: SlotOccurrence[];
 }
 
+export interface StartEndCollision {
+  timeMin: number;
+  time: string;
+  session: 'm' | 'a' | 'ma';
+  sessionLabel: string;
+  startSlots: SlotOccurrence[];
+  endSlots: SlotOccurrence[];
+  pairCount: number;
+  crossMachine: boolean;
+}
+
+export interface OverlapCategoryMetrics {
+  timeCount: number;
+  pairCount: number;
+  sameMachineTimeCount: number;
+  sameMachinePairCount: number;
+  diffMachineTimeCount: number;
+  diffMachinePairCount: number;
+}
+
+export interface OverlapAuditItem {
+  timeMin: number;
+  time: string;
+  session: 'm' | 'a' | 'ma';
+  sessionLabel: string;
+  hasStartStart: boolean;
+  hasStartStartSame: boolean;
+  hasStartStartDiff: boolean;
+  hasEndEnd: boolean;
+  hasEndEndSame: boolean;
+  hasEndEndDiff: boolean;
+  hasStartEnd: boolean;
+  hasStartEndSame: boolean;
+  hasStartEndDiff: boolean;
+  startSlots: SlotOccurrence[];
+  endSlots: SlotOccurrence[];
+  startStartSamePairCount: number;
+  startStartDiffPairCount: number;
+  endEndSamePairCount: number;
+  endEndDiffPairCount: number;
+  startEndSamePairCount: number;
+  startEndDiffPairCount: number;
+}
+
+export interface OverlapAuditSummary {
+  uniqueOverlapTimes: number;
+  morningOverlapTimes: number;
+  afternoonOverlapTimes: number;
+  totalOverlapPairs: number;
+  startStart: OverlapCategoryMetrics;
+  endEnd: OverlapCategoryMetrics;
+  startEnd: OverlapCategoryMetrics;
+  items: OverlapAuditItem[];
+}
+
 export interface MachineScheduleSummary {
   machineKey: MachineKey;
   machineName: string;
@@ -62,6 +117,8 @@ export interface ScheduleAnalysis {
   errors: string[];
   startCollisions: ScheduleCollision[];
   endCollisions: ScheduleCollision[];
+  startEndCollisions: StartEndCollision[];
+  overlapAudit: OverlapAuditSummary;
   hasConflict: boolean;
   summaries: Record<MachineKey, MachineScheduleSummary>;
   summaryList: MachineScheduleSummary[];
@@ -227,7 +284,7 @@ function generateSessionSlots(
   if (settings.scanDuration < 1 || settings.primaryInterval < 1) return slots;
 
   let curStart = workStartMin + offsetMin;
-  const maxSlots = 500;
+  const maxSlots = 1440;
 
   for (let k = 1; k <= maxSlots; k++) {
     const curEnd = curStart + settings.scanDuration;
@@ -480,6 +537,171 @@ export function analyzeScheduleSettings(settings: ScheduleSettings): ScheduleAna
   }
   endCollisions.sort((a, b) => a.timeMin - b.timeMin);
 
+  const startEndCollisions: StartEndCollision[] = [];
+  const overlapItems: OverlapAuditItem[] = [];
+  const allAuditTimes = Array.from(new Set([...byStart.keys(), ...byEnd.keys()])).sort(
+    (a, b) => a - b
+  );
+
+  const emptyMetrics = (): OverlapCategoryMetrics => ({
+    timeCount: 0,
+    pairCount: 0,
+    sameMachineTimeCount: 0,
+    sameMachinePairCount: 0,
+    diffMachineTimeCount: 0,
+    diffMachinePairCount: 0,
+  });
+
+  const startStartMetrics = emptyMetrics();
+  const endEndMetrics = emptyMetrics();
+  const startEndMetrics = emptyMetrics();
+  let morningOverlapTimes = 0;
+  let afternoonOverlapTimes = 0;
+
+  for (const timeMin of allAuditTimes) {
+    const startSlots = byStart.get(timeMin) || [];
+    const endSlots = byEnd.get(timeMin) || [];
+
+    let startStartSamePairCount = 0;
+    let startStartDiffPairCount = 0;
+    for (let i = 0; i < startSlots.length; i++) {
+      for (let j = i + 1; j < startSlots.length; j++) {
+        if (startSlots[i].machineKey === startSlots[j].machineKey) startStartSamePairCount++;
+        else startStartDiffPairCount++;
+      }
+    }
+
+    let endEndSamePairCount = 0;
+    let endEndDiffPairCount = 0;
+    for (let i = 0; i < endSlots.length; i++) {
+      for (let j = i + 1; j < endSlots.length; j++) {
+        if (endSlots[i].machineKey === endSlots[j].machineKey) endEndSamePairCount++;
+        else endEndDiffPairCount++;
+      }
+    }
+
+    let startEndSamePairCount = 0;
+    let startEndDiffPairCount = 0;
+    for (const ss of startSlots) {
+      for (const es of endSlots) {
+        if (ss.machineKey === es.machineKey) startEndSamePairCount++;
+        else startEndDiffPairCount++;
+      }
+    }
+
+    const hasStartStartSame = startStartSamePairCount > 0;
+    const hasStartStartDiff = startStartDiffPairCount > 0;
+    const hasStartStart = hasStartStartSame || hasStartStartDiff;
+
+    const hasEndEndSame = endEndSamePairCount > 0;
+    const hasEndEndDiff = endEndDiffPairCount > 0;
+    const hasEndEnd = hasEndEndSame || hasEndEndDiff;
+
+    const hasStartEndSame = startEndSamePairCount > 0;
+    const hasStartEndDiff = startEndDiffPairCount > 0;
+    const hasStartEnd = hasStartEndSame || hasStartEndDiff;
+
+    if (!hasStartStart && !hasEndEnd && !hasStartEnd) continue;
+
+    const involved = [...startSlots, ...endSlots];
+    const hasM = involved.some((s) => s.session === 'm');
+    const hasA = involved.some((s) => s.session === 'a');
+    const session: 'm' | 'a' | 'ma' = hasM && hasA ? 'ma' : hasA ? 'a' : 'm';
+    const sessionLabel = session === 'ma' ? 'Sáng & Chiều' : session === 'a' ? 'Chiều' : 'Sáng';
+    const time = formatMinutesHHMM(timeMin);
+
+    if (hasStartEnd) {
+      startEndCollisions.push({
+        timeMin,
+        time,
+        session,
+        sessionLabel,
+        startSlots,
+        endSlots,
+        pairCount: startEndSamePairCount + startEndDiffPairCount,
+        crossMachine: hasStartEndDiff,
+      });
+    }
+
+    if (hasStartStart) {
+      startStartMetrics.timeCount++;
+      startStartMetrics.pairCount += startStartSamePairCount + startStartDiffPairCount;
+      if (hasStartStartSame) {
+        startStartMetrics.sameMachineTimeCount++;
+        startStartMetrics.sameMachinePairCount += startStartSamePairCount;
+      }
+      if (hasStartStartDiff) {
+        startStartMetrics.diffMachineTimeCount++;
+        startStartMetrics.diffMachinePairCount += startStartDiffPairCount;
+      }
+    }
+
+    if (hasEndEnd) {
+      endEndMetrics.timeCount++;
+      endEndMetrics.pairCount += endEndSamePairCount + endEndDiffPairCount;
+      if (hasEndEndSame) {
+        endEndMetrics.sameMachineTimeCount++;
+        endEndMetrics.sameMachinePairCount += endEndSamePairCount;
+      }
+      if (hasEndEndDiff) {
+        endEndMetrics.diffMachineTimeCount++;
+        endEndMetrics.diffMachinePairCount += endEndDiffPairCount;
+      }
+    }
+
+    if (hasStartEnd) {
+      startEndMetrics.timeCount++;
+      startEndMetrics.pairCount += startEndSamePairCount + startEndDiffPairCount;
+      if (hasStartEndSame) {
+        startEndMetrics.sameMachineTimeCount++;
+        startEndMetrics.sameMachinePairCount += startEndSamePairCount;
+      }
+      if (hasStartEndDiff) {
+        startEndMetrics.diffMachineTimeCount++;
+        startEndMetrics.diffMachinePairCount += startEndDiffPairCount;
+      }
+    }
+
+    if (hasM) morningOverlapTimes++;
+    if (hasA) afternoonOverlapTimes++;
+
+    overlapItems.push({
+      timeMin,
+      time,
+      session,
+      sessionLabel,
+      hasStartStart,
+      hasStartStartSame,
+      hasStartStartDiff,
+      hasEndEnd,
+      hasEndEndSame,
+      hasEndEndDiff,
+      hasStartEnd,
+      hasStartEndSame,
+      hasStartEndDiff,
+      startSlots,
+      endSlots,
+      startStartSamePairCount,
+      startStartDiffPairCount,
+      endEndSamePairCount,
+      endEndDiffPairCount,
+      startEndSamePairCount,
+      startEndDiffPairCount,
+    });
+  }
+
+  const overlapAudit: OverlapAuditSummary = {
+    uniqueOverlapTimes: overlapItems.length,
+    morningOverlapTimes,
+    afternoonOverlapTimes,
+    totalOverlapPairs:
+      startStartMetrics.pairCount + endEndMetrics.pairCount + startEndMetrics.pairCount,
+    startStart: startStartMetrics,
+    endEnd: endEndMetrics,
+    startEnd: startEndMetrics,
+    items: overlapItems,
+  };
+
   return {
     settings,
     rowsByMachine,
@@ -488,6 +710,8 @@ export function analyzeScheduleSettings(settings: ScheduleSettings): ScheduleAna
     errors,
     startCollisions,
     endCollisions,
+    startEndCollisions,
+    overlapAudit,
     hasConflict: errors.length > 0 || startCollisions.length > 0 || endCollisions.length > 0,
     summaries,
     summaryList,

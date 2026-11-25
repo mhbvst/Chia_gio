@@ -258,6 +258,10 @@ table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell[data-now="tru
     display: table-cell !important;
   }
 
+  table.xq-print-table tr.print-show-row {
+    display: table-row !important;
+  }
+
   table.xq-print-table th,
   table.xq-print-table td {
     padding: 3.5px 5px !important;

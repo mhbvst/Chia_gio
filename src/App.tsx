@@ -214,9 +214,13 @@ export default function App() {
     }
     try {
       const data = await fetchStatesForDate(dk);
-      setTodayKey(data.today);
-      setViewedDateKey(data.dateKey);
-      setDateInput(data.dateKey);
+      if (typeof data?.today === 'string' && data.today) {
+        setTodayKey(data.today);
+      }
+      if (typeof data?.dateKey === 'string' && data.dateKey) {
+        setViewedDateKey(data.dateKey);
+        setDateInput(data.dateKey);
+      }
       const nextStates: Record<string, Record<string, boolean>> = {};
       if (data.machines && typeof data.machines === 'object') {
         for (const mk of Object.keys(data.machines)) {
@@ -252,17 +256,19 @@ export default function App() {
     let mounted = true;
     (async () => {
       try {
-        const [{ today }, auth, settingsRes] = await Promise.all([
+        const [todayRes, auth, settingsRes] = await Promise.all([
           fetchToday(),
           fetchAuthStatus(),
           fetchScheduleSettings().catch(() => null),
         ]);
         if (!mounted) return;
-        setTodayKey(today);
-        setViewedDateKey(today);
-        setDateInput(today);
-        setAuthConfigured(auth.configured);
-        setAuthSource(auth.source);
+        const resolvedToday =
+          typeof todayRes?.today === 'string' && todayRes.today ? todayRes.today : getTodayKeyVN();
+        setTodayKey(resolvedToday);
+        setViewedDateKey(resolvedToday);
+        setDateInput(resolvedToday);
+        setAuthConfigured(Boolean(auth?.configured));
+        setAuthSource(auth?.source || 'unconfigured');
         if (settingsRes?.settings) {
           const clean = sanitizeScheduleSettings(settingsRes.settings);
           if (clean) {
@@ -274,7 +280,7 @@ export default function App() {
             }
           }
         }
-        await loadDateStates(today, false);
+        await loadDateStates(resolvedToday, false);
       } catch (err) {
         if (!mounted) return;
         setLoadingStates(false);
@@ -468,8 +474,9 @@ export default function App() {
   };
 
   const handleViewToday = () => {
-    setDateInput(todayKey);
-    void loadDateStates(todayKey, false);
+    const targetToday = todayKey || getTodayKeyVN();
+    setDateInput(targetToday);
+    void loadDateStates(targetToday, false);
     setMobileSidebarOpen(false);
     scheduleAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
@@ -989,7 +996,7 @@ export default function App() {
       {/* ===== Right Workspace Column (Header + Main Content) ===== */}
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Top Header */}
-        <header className="no-print sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-[#C7D6E8] dark:border-slate-800 px-4 sm:px-6 py-3">
+        <header className="no-print relative z-30 bg-white dark:bg-slate-900 border-b border-[#C7D6E8] dark:border-slate-800 px-4 sm:px-6 py-3">
           <div className="max-w-[1360px] mx-auto flex flex-wrap items-center justify-between gap-3">
             {/* Left: Mobile drawer button + Contextual Breadcrumb */}
             <div className="flex items-center gap-3 min-w-0">
@@ -1024,6 +1031,7 @@ export default function App() {
               <ClockWidget
                 selectedDateKey={viewedDateKey}
                 onSelectDate={(dk) => {
+                  if (!dk) return;
                   setDateInput(dk);
                   void loadDateStates(dk, false);
                 }}
@@ -1255,8 +1263,8 @@ export default function App() {
                     <Calendar className="w-3.5 h-3.5 text-[#0D4EA6] dark:text-sky-400 shrink-0" />
                     <input
                       type="date"
-                      value={dateInput}
-                      onChange={(e) => setDateInput(e.target.value)}
+                      value={dateInput ?? ''}
+                      onChange={(e) => setDateInput(e.target.value ?? '')}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleViewSelectedDate();
                       }}

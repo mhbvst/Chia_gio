@@ -11,13 +11,10 @@ services:
         value: production
       - key: SESSION_SECRET
         generateValue: true
+      - key: DATABASE_URL
+        sync: false
       - key: DATA_DIR
         value: ./data
       # Tùy chọn: Bỏ chú thích dòng dưới nếu muốn cố định mật khẩu quản trị qua biến môi trường
       # - key: ADMIN_PASSWORD
       #   sync: false
-    # Lưu ý: Nếu nâng cấp gói trả phí để lưu dữ liệu vĩnh viễn khi khởi động lại, đổi DATA_DIR thành /var/data và bật disk:
-    # disk:
-    #   name: xray-data
-    #   mountPath: /var/data
-    #   sizeGB: 1

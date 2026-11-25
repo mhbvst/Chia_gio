@@ -230,10 +230,9 @@
     /* Main Workspace Column */
     .main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
-    /* Sticky Top Header */
+    /* Top Header */
     .top-header {
-      position: sticky;
-      top: 0;
+      position: relative;
       z-index: 30;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -660,6 +659,8 @@
 
     /* Mobile Morning/Afternoon bar */
     .mobile-seg-bar { display: none; }
+    .mobile-row-cnt { display: none; }
+    .desktop-row-cnt { display: inline; }
     @media (max-width: 767px) {
       .mobile-seg-bar {
         display: flex;
@@ -667,21 +668,33 @@
         justify-content: space-between;
         padding: 8px 12px;
       }
+      .mobile-row-cnt { display: inline; }
+      .desktop-row-cnt { display: none; }
       body.mobile-morning .a-col, body.mobile-morning th.a-col { display: none; }
       body.mobile-afternoon .m-col, body.mobile-afternoon th.m-col { display: none; }
+      body.mobile-morning .mob-a-cnt { display: none; }
+      body.mobile-afternoon .mob-m-cnt { display: none; }
+      body.mobile-morning table.xq tbody tr.no-morning-row { display: none; }
+      body.mobile-afternoon table.xq tbody tr.no-afternoon-row { display: none; }
     }
 
     /* Schedule Table Card */
-    .table-card { overflow: hidden; }
+    .table-card { overflow-x: clip; }
     .table-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       padding: 14px 18px;
+      border-top-left-radius: 11px;
+      border-top-right-radius: 11px;
       border-bottom: 1px solid var(--border);
       background: var(--surface);
+      box-shadow: 0 1px 2px rgba(8, 53, 120, 0.04);
     }
     .table-kicker { font-size: 12px; font-weight: 600; color: var(--muted); }
     .table-kicker .dept { color: var(--accent-500); font-weight: 700; }
@@ -710,24 +723,24 @@
     .toolbar-time-now { color: var(--text); }
 
     .table-scroll {
-      overflow: auto;
-      max-height: calc(100vh - 255px);
-      min-height: 360px;
+      overflow-x: clip;
+      border-bottom-left-radius: 11px;
+      border-bottom-right-radius: 11px;
     }
     table.xq {
       width: 100%;
-      min-width: 780px;
+      min-width: 0;
       border-collapse: separate;
       border-spacing: 0;
     }
-    @media (max-width: 767px) { table.xq { min-width: 100%; } }
 
     table.xq thead tr.grp th {
       position: sticky;
-      top: 0;
+      top: var(--table-toolbar-h, 68px);
       z-index: 20;
-      padding: 10px 8px;
+      padding: 9px 8px;
       font-size: 11.5px;
+      line-height: 16px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -737,7 +750,7 @@
     }
     table.xq thead tr.sub th {
       position: sticky;
-      top: 35px;
+      top: calc(var(--table-toolbar-h, 68px) + var(--table-grp-h, 35px));
       z-index: 20;
       padding: 8px;
       font-size: 11.5px;
@@ -1071,6 +1084,44 @@
       outline: none;
     }
     .settings-text-input:focus { border-color: var(--accent-500); box-shadow: 0 0 0 2px var(--accent-ring); }
+    .audit-box {
+      padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface-alt); display: flex; flex-direction: column; gap: 10px;
+    }
+    .audit-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    .audit-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden;
+    }
+    @media (max-width: 640px) { .audit-grid { grid-template-columns: 1fr; } }
+    .audit-cell { padding: 9px 12px; border-right: 1px solid var(--border); }
+    .audit-cell:last-child { border-right: none; }
+    @media (max-width: 640px) {
+      .audit-cell { border-right: none; border-bottom: 1px solid var(--border); }
+      .audit-cell:last-child { border-bottom: none; }
+    }
+    .audit-lbl { font-size: 11px; font-weight: 700; color: var(--muted); }
+    .audit-val-row { margin-top: 2px; display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+    .audit-val { font-family: var(--font-mono); font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent-600); }
+    .audit-sub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .audit-scope-list { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .audit-scope-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .audit-scope-lbl { font-family: var(--font-sans); font-weight: 600; color: var(--muted); }
+    .audit-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    .audit-seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); }
+    .audit-seg-btn {
+      border: none; background: transparent; color: var(--muted); padding: 4px 9px; border-radius: 6px;
+      font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .audit-seg-btn.active { background: var(--accent-50); color: var(--accent-600); }
+    .audit-table-wrap { max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .audit-table { width: 100%; border-collapse: collapse; font-size: 11.5px; text-align: left; }
+    .audit-table thead th {
+      position: sticky; top: 0; z-index: 2; padding: 7px 10px; background: var(--surface-alt);
+      color: var(--accent-600); font-weight: 800; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .audit-table tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .audit-table tbody tr:last-child td { border-bottom: none; }
 
     /* Toast */
     .toast-stack {
@@ -1113,6 +1164,8 @@
       table.xq { width: 100% !important; min-width: 0 !important; font-size: 11px !important; border-collapse: collapse !important; }
       body.mobile-morning .a-col, body.mobile-morning th.a-col,
       body.mobile-afternoon .m-col, body.mobile-afternoon th.m-col { display: table-cell !important; }
+      body.mobile-morning table.xq tbody tr.no-morning-row,
+      body.mobile-afternoon table.xq tbody tr.no-afternoon-row { display: table-row !important; }
       table.xq th, table.xq td { padding: 3.5px 5px !important; border-color: #94A3B8 !important; color: #0F172A !important; }
       table.xq thead th { position: static !important; background: #DCEBFF !important; color: #083578 !important; }
       td.selected { background: #D2E5FF !important; box-shadow: none !important; }
@@ -1334,9 +1387,9 @@
               <div id="printCount" class="mono" style="font-size:12px;font-weight:700;"></div>
             </div>
 
-            <div class="table-toolbar no-print">
+            <div id="tableToolbar" class="table-toolbar no-print">
               <div>
-                <div class="table-kicker"><span class="dept">Chẩn đoán hình ảnh</span> · <span id="tableSupervisor">Phụ trách: —</span> · <span id="tableRowCount" class="mono">103/103 khung giờ</span></div>
+                <div class="table-kicker"><span class="dept">Chẩn đoán hình ảnh</span> · <span id="tableSupervisor">Phụ trách: —</span> · <span id="tableRowCount" class="mono">— khung giờ</span></div>
                 <h2 id="tableTitle" class="table-title">MÁY CHỤP X QUANG TITAN 2000</h2>
               </div>
               <div class="action-group">
@@ -1380,8 +1433,8 @@
             </div>
 
             <div id="tableSummaryBar" class="pagination-bar no-print" style="display:none">
-              <span id="pgSummary">Hiển thị tất cả 103/103 khung giờ trên một trang</span>
-              <span id="pgCheckedSummary" class="mono">Đã chọn: 0/206 ca</span>
+              <span id="pgSummary">Hiển thị theo cài đặt giờ</span>
+              <span id="pgCheckedSummary" class="mono">Đã chọn: 0 ca</span>
             </div>
           </section>
         </div>
@@ -1484,7 +1537,7 @@
         <div style="padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-alt);font-size:12.5px;display:flex;flex-direction:column;gap:6px;">
           <div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:var(--muted);">Thiết bị:</span><strong id="pmMachine" style="color:var(--accent-600);">TITAN 2000</strong></div>
           <div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:var(--muted);">Phụ trách:</span><span id="pmSupervisor" style="font-weight:600;">Nguyễn Văn Hải</span></div>
-          <div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:var(--muted);">Số lượng lịch:</span><strong id="pmCount" class="mono">103 khung giờ</strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:var(--muted);">Số lượng lịch:</span><strong id="pmCount" class="mono">— khung giờ</strong></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <button id="btnDownloadPdf" class="btn primary" type="button" style="justify-content:center;padding:10px 14px;">⬇ Tải file PDF (A4)</button>
@@ -1640,7 +1693,93 @@
           </div>
 
           <div id="settingsOkBox" class="settings-ok" style="display:flex">
-            <span>✓ Hợp lệ: Không có ca nào trùng thời gian bắt đầu hoặc thời gian kết thúc giữa các máy.</span>
+            <span>✓ Hợp lệ để lưu: Không có hai ca nào cùng giờ bắt đầu hoặc cùng giờ kết thúc giữa các máy.</span>
+          </div>
+
+          <div id="settingsAuditBox" class="audit-box">
+            <div class="audit-head">
+              <div>
+                <div id="auditTitleText" style="font-size:12.5px;font-weight:800;color:var(--accent-600);">Rà soát &amp; đếm số giờ trùng nhau (gộp tất cả máy)</div>
+                <div id="auditSessionBreakdown" class="audit-sub">Tổng: 0 mốc (0 cặp) · Sáng: 0 mốc · Chiều: 0 mốc</div>
+              </div>
+              <button id="btnToggleAuditDetail" class="btn sm" type="button">Rà soát chi tiết (0 mốc)</button>
+            </div>
+
+            <div class="audit-grid">
+              <div class="audit-cell">
+                <div class="audit-lbl">Trùng thời gian bắt đầu</div>
+                <div class="audit-val-row">
+                  <span id="auditSSCount" class="audit-val">0 mốc</span>
+                  <span id="auditSSPairs" class="audit-sub">0 cặp</span>
+                </div>
+                <div class="audit-scope-list">
+                  <div class="audit-scope-row"><span class="audit-scope-lbl">Cùng máy:</span><strong id="auditSSSame">0 mốc (0 cặp)</strong></div>
+                  <div class="audit-scope-row"><span class="audit-scope-lbl">Khác máy:</span><strong id="auditSSDiff">0 mốc (0 cặp)</strong></div>
+                </div>
+              </div>
+              <div class="audit-cell">
+                <div class="audit-lbl">Trùng thời gian kết thúc</div>
+                <div class="audit-val-row">
+                  <span id="auditEECount" class="audit-val">0 mốc</span>
+                  <span id="auditEEPairs" class="audit-sub">0 cặp</span>
+                </div>
+                <div class="audit-scope-list">
+                  <div class="audit-scope-row"><span class="audit-scope-lbl">Cùng máy:</span><strong id="auditEESame">0 mốc (0 cặp)</strong></div>
+                  <div class="audit-scope-row"><span class="audit-scope-lbl">Khác máy:</span><strong id="auditEEDiff">0 mốc (0 cặp)</strong></div>
+                </div>
+              </div>
+              <div class="audit-cell">
+                <div class="audit-lbl">Bắt đầu trùng kết thúc</div>
+                <div class="audit-val-row">
+                  <span id="auditSECount" class="audit-val">0 mốc</span>
+                  <span id="auditSEPairs" class="audit-sub">0 cặp</span>
+                </div>
+                <div class="audit-scope-list">
+                  <div class="audit-scope-row"><span class="audit-scope-lbl">Cùng máy:</span><strong id="auditSESame">0 mốc (0 cặp)</strong></div>
+                  <div class="audit-scope-row"><span class="audit-scope-lbl">Khác máy:</span><strong id="auditSEDiff">0 mốc (0 cặp)</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="auditDetailWrap" style="display:none;flex-direction:column;gap:8px;">
+              <div class="audit-filters">
+                <div id="auditTypeTabs" class="audit-seg" style="flex-wrap:wrap;">
+                  <button type="button" class="audit-seg-btn active" data-audit-type="all">Tất cả (0)</button>
+                  <button type="button" class="audit-seg-btn" data-audit-type="start-start">Trùng BĐ (0)</button>
+                  <button type="button" class="audit-seg-btn" data-audit-type="end-end">Trùng KT (0)</button>
+                  <button type="button" class="audit-seg-btn" data-audit-type="start-end">BĐ ↔ KT (0)</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                  <div id="auditScopeTabs" class="audit-seg">
+                    <button type="button" class="audit-seg-btn active" data-audit-scope="all">Cùng &amp; khác máy</button>
+                    <button type="button" class="audit-seg-btn" data-audit-scope="same">Cùng máy</button>
+                    <button type="button" class="audit-seg-btn" data-audit-scope="diff">Khác máy</button>
+                  </div>
+                  <div id="auditSessionTabs" class="audit-seg">
+                    <button type="button" class="audit-seg-btn active" data-audit-sess="all">Cả ngày</button>
+                    <button type="button" class="audit-seg-btn" data-audit-sess="m">Sáng</button>
+                    <button type="button" class="audit-seg-btn" data-audit-sess="a">Chiều</button>
+                  </div>
+                </div>
+              </div>
+              <div id="auditEmptyMsg" style="display:none;padding:14px;text-align:center;font-size:12px;color:var(--muted);border:1px solid var(--border);border-radius:8px;background:var(--surface);">
+                Không có mốc giờ trùng nào khớp bộ lọc đang chọn.
+              </div>
+              <div id="auditTableWrap" class="audit-table-wrap">
+                <table class="audit-table">
+                  <thead>
+                    <tr>
+                      <th>Mốc giờ</th>
+                      <th>Buổi</th>
+                      <th>Loại trùng &amp; Phạm vi</th>
+                      <th>Ca bắt đầu tại mốc này</th>
+                      <th>Ca kết thúc tại mốc này</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auditTableBody"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2049,7 +2188,7 @@
         var slots = [];
         if (wEnd <= wStart || cfg.scanDuration < 1 || cfg.primaryInterval < 1) return slots;
         var cur = wStart + offset;
-        for (var k = 1; k <= 500; k++) {
+        for (var k = 1; k <= 1440; k++) {
           var end = cur + cfg.scanDuration;
           if (end > wEnd) break;
           slots.push({ stt: k, startMin: cur, endMin: end, start: formatMinutesHHMM(cur), end: formatMinutesHHMM(end) });
@@ -2177,11 +2316,140 @@
         startCol.sort(function (a, b) { return a.timeMin - b.timeMin; });
         endCol.sort(function (a, b) { return a.timeMin - b.timeMin; });
 
+        var startEndCol = [];
+        var overlapItems = [];
+        var timeSet = {};
+        Object.keys(byS).forEach(function (k3) { timeSet[k3] = true; });
+        Object.keys(byE).forEach(function (k3) { timeSet[k3] = true; });
+        var allAuditKeys = Object.keys(timeSet).map(Number).sort(function (a, b) { return a - b; });
+
+        function newCatMetrics() {
+          return {
+            timeCount: 0, pairCount: 0,
+            sameMachineTimeCount: 0, sameMachinePairCount: 0,
+            diffMachineTimeCount: 0, diffMachinePairCount: 0
+          };
+        }
+        var ssMetrics = newCatMetrics();
+        var eeMetrics = newCatMetrics();
+        var seMetrics = newCatMetrics();
+        var morningOverlapTimes = 0, afternoonOverlapTimes = 0;
+
+        for (var ai = 0; ai < allAuditKeys.length; ai++) {
+          var tMin = allAuditKeys[ai];
+          var sList = byS[tMin] || [];
+          var eList = byE[tMin] || [];
+
+          var ssSame = 0, ssDiff = 0;
+          for (var i1 = 0; i1 < sList.length; i1++) {
+            for (var j1 = i1 + 1; j1 < sList.length; j1++) {
+              if (sList[i1].machineKey === sList[j1].machineKey) ssSame++;
+              else ssDiff++;
+            }
+          }
+
+          var eeSame = 0, eeDiff = 0;
+          for (var i2 = 0; i2 < eList.length; i2++) {
+            for (var j2 = i2 + 1; j2 < eList.length; j2++) {
+              if (eList[i2].machineKey === eList[j2].machineKey) eeSame++;
+              else eeDiff++;
+            }
+          }
+
+          var seSame = 0, seDiff = 0;
+          for (var i3 = 0; i3 < sList.length; i3++) {
+            for (var j3 = 0; j3 < eList.length; j3++) {
+              if (sList[i3].machineKey === eList[j3].machineKey) seSame++;
+              else seDiff++;
+            }
+          }
+
+          var hasSSSame = ssSame > 0, hasSSDiff = ssDiff > 0, hasSS = hasSSSame || hasSSDiff;
+          var hasEESame = eeSame > 0, hasEEDiff = eeDiff > 0, hasEE = hasEESame || hasEEDiff;
+          var hasSESame = seSame > 0, hasSEDiff = seDiff > 0, hasSE = hasSESame || hasSEDiff;
+          if (!hasSS && !hasEE && !hasSE) continue;
+
+          var inv = sList.concat(eList);
+          var hasM = false, hasA = false;
+          for (var ii = 0; ii < inv.length; ii++) {
+            if (inv[ii].session === "m") hasM = true;
+            if (inv[ii].session === "a") hasA = true;
+          }
+          var sess = (hasM && hasA) ? "ma" : (hasA ? "a" : "m");
+          var sessLabel = sess === "ma" ? "Sáng & Chiều" : (sess === "a" ? "Chiều" : "Sáng");
+          var tStr = formatMinutesHHMM(tMin);
+
+          if (hasSE) {
+            startEndCol.push({
+              timeMin: tMin,
+              time: tStr,
+              session: sess,
+              sessionLabel: sessLabel,
+              startSlots: sList,
+              endSlots: eList,
+              pairCount: seSame + seDiff
+            });
+          }
+
+          if (hasSS) {
+            ssMetrics.timeCount++;
+            ssMetrics.pairCount += ssSame + ssDiff;
+            if (hasSSSame) { ssMetrics.sameMachineTimeCount++; ssMetrics.sameMachinePairCount += ssSame; }
+            if (hasSSDiff) { ssMetrics.diffMachineTimeCount++; ssMetrics.diffMachinePairCount += ssDiff; }
+          }
+          if (hasEE) {
+            eeMetrics.timeCount++;
+            eeMetrics.pairCount += eeSame + eeDiff;
+            if (hasEESame) { eeMetrics.sameMachineTimeCount++; eeMetrics.sameMachinePairCount += eeSame; }
+            if (hasEEDiff) { eeMetrics.diffMachineTimeCount++; eeMetrics.diffMachinePairCount += eeDiff; }
+          }
+          if (hasSE) {
+            seMetrics.timeCount++;
+            seMetrics.pairCount += seSame + seDiff;
+            if (hasSESame) { seMetrics.sameMachineTimeCount++; seMetrics.sameMachinePairCount += seSame; }
+            if (hasSEDiff) { seMetrics.diffMachineTimeCount++; seMetrics.diffMachinePairCount += seDiff; }
+          }
+
+          if (hasM) morningOverlapTimes++;
+          if (hasA) afternoonOverlapTimes++;
+
+          overlapItems.push({
+            timeMin: tMin,
+            time: tStr,
+            session: sess,
+            sessionLabel: sessLabel,
+            hasStartStart: hasSS,
+            hasStartStartSame: hasSSSame,
+            hasStartStartDiff: hasSSDiff,
+            hasEndEnd: hasEE,
+            hasEndEndSame: hasEESame,
+            hasEndEndDiff: hasEEDiff,
+            hasStartEnd: hasSE,
+            hasStartEndSame: hasSESame,
+            hasStartEndDiff: hasSEDiff,
+            startSlots: sList,
+            endSlots: eList
+          });
+        }
+
+        var overlapAudit = {
+          uniqueOverlapTimes: overlapItems.length,
+          morningOverlapTimes: morningOverlapTimes,
+          afternoonOverlapTimes: afternoonOverlapTimes,
+          totalOverlapPairs: ssMetrics.pairCount + eeMetrics.pairCount + seMetrics.pairCount,
+          startStart: ssMetrics,
+          endEnd: eeMetrics,
+          startEnd: seMetrics,
+          items: overlapItems
+        };
+
         return {
           rowsByMachine: rowsByMachine,
           errors: errors,
           startCollisions: startCol,
           endCollisions: endCol,
+          startEndCollisions: startEndCol,
+          overlapAudit: overlapAudit,
           hasConflict: errors.length > 0 || startCol.length > 0 || endCol.length > 0,
           summaries: summaries,
           summaryList: summaryList
@@ -2406,8 +2674,12 @@
         activeMachine = (lockedMachine && MACHINES[lockedMachine]) ? lockedMachine : MACHINE_LIST[0].key;
       }
       var settingsDraft = cloneSettings(activeSettings);
+      var auditExpanded = false;
+      var auditTypeFilter = "all";
+      var auditScopeFilter = "all";
+      var auditSessionFilter = "all";
 
-      var $ = function (id) { return document.getElementById(id); };
+      function $(id) { return document.getElementById(id); }
 
       function showToast(type, message) {
         var el = document.createElement("div");
@@ -2766,22 +3038,50 @@
         return best ? { stt: best.stt, session: best.session } : { stt: rows[0].stt, session: "m" };
       }
 
+      function updateTableStickyOffsets() {
+        var tb = $("tableToolbar");
+        if (tb) {
+          var h = Math.floor(tb.getBoundingClientRect().height);
+          if (h > 0) document.documentElement.style.setProperty("--table-toolbar-h", h + "px");
+        }
+        var tbl = $("scheduleTable");
+        var grpRow = tbl ? tbl.querySelector("thead tr.grp") : null;
+        if (grpRow) {
+          var gh = Math.floor(grpRow.getBoundingClientRect().height);
+          if (gh > 0) document.documentElement.style.setProperty("--table-grp-h", gh + "px");
+        }
+      }
+
+      if (typeof ResizeObserver !== "undefined") {
+        var stickyRo = new ResizeObserver(updateTableStickyOffsets);
+        if ($("tableToolbar")) stickyRo.observe($("tableToolbar"));
+        var grpHeaderEl = $("scheduleTable") ? $("scheduleTable").querySelector("thead tr.grp") : null;
+        if (grpHeaderEl) stickyRo.observe(grpHeaderEl);
+      }
+      window.addEventListener("resize", updateTableStickyOffsets);
+
       function scrollToRowInTable(stt) {
-        var container = $("tableScroll");
         var tbody = $("scheduleBody");
-        if (!container || !tbody) return;
+        if (!tbody) return;
         var rowEl = tbody.querySelector("tr[data-stt=\"" + stt + "\"]");
         if (!rowEl) return;
+        updateTableStickyOffsets();
+        var tb = $("tableToolbar");
+        var tbH = tb ? Math.floor(tb.getBoundingClientRect().height) : 68;
         var thead = $("scheduleTable").querySelector("thead");
         var theadH = thead ? thead.offsetHeight : 72;
-        var visibleH = Math.max(120, container.clientHeight - theadH);
-        var targetTop = rowEl.offsetTop - theadH - visibleH / 2 + rowEl.offsetHeight / 2;
-        container.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+        var stickyTop = tbH + theadH;
+        var rect = rowEl.getBoundingClientRect();
+        var rowTopOnPage = window.scrollY + rect.top;
+        var visibleH = Math.max(120, window.innerHeight - stickyTop);
+        var targetTop = rowTopOnPage - stickyTop - visibleH / 2 + rect.height / 2;
+        window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
         rowEl.classList.add("flash-now-row");
         setTimeout(function () { rowEl.classList.remove("flash-now-row"); }, 1800);
       }
 
       function renderTable() {
+        updateTableStickyOffsets();
         var machine = MACHINES[activeMachine];
         $("tableTitle").textContent = machine.fullTitle;
         $("tableSupervisor").textContent = "Phụ trách: " + machine.supervisor;
@@ -2797,18 +3097,32 @@
         }
         $("loadingBox").style.display = "none";
         var filtered = getFilteredRows();
-        $("tableRowCount").textContent = filtered.length + "/" + machine.rows.length + " khung giờ";
+        var mCount = 0, aCount = 0;
+        for (var ci = 0; ci < filtered.length; ci++) {
+          if (filtered[ci].morningStart) mCount++;
+          if (filtered[ci].afternoonStart) aCount++;
+        }
+        $("tableRowCount").innerHTML =
+          "<span class=\"mobile-row-cnt mob-m-cnt\">" + mCount + " ca (Sáng)</span>" +
+          "<span class=\"mobile-row-cnt mob-a-cnt\">" + aCount + " ca (Chiều)</span>" +
+          "<span class=\"desktop-row-cnt\">" + filtered.length + " hàng · Sáng " + mCount + " / Chiều " + aCount + " ca</span>";
         $("scheduleTable").style.display = "table";
         $("tableSummaryBar").style.display = "flex";
         var activeSlots = statesByMachine[activeMachine] || {};
         var totalSelectable = countTotalSlots(machine.rows);
         var checkedTotal = countCheckedSlotsInRows(machine.rows, activeSlots).totalChecked;
-        $("pgSummary").textContent = "Hiển thị tất cả " + filtered.length + "/" + machine.rows.length + " khung giờ trên một trang";
+        $("pgSummary").innerHTML =
+          "Hiển thị " +
+          "<strong class=\"mobile-row-cnt mob-m-cnt mono\">" + mCount + "/" + mCount + " ca buổi sáng</strong>" +
+          "<strong class=\"mobile-row-cnt mob-a-cnt mono\">" + aCount + "/" + aCount + " ca buổi chiều</strong>" +
+          "<strong class=\"desktop-row-cnt mono\">" + filtered.length + " hàng (Sáng " + mCount + " · Chiều " + aCount + " ca)</strong>" +
+          " theo cài đặt giờ";
         $("pgCheckedSummary").textContent = "Đã chọn: " + checkedTotal + "/" + totalSelectable + " ca";
 
         var isReadOnly = viewedDateKey !== todayKey;
         var nearest = findNearestNow(filtered);
         $("btnJumpNow").style.display = viewedDateKey === todayKey ? "inline-flex" : "none";
+        updateTableStickyOffsets();
 
         var htmlParts = [];
         for (var i = 0; i < filtered.length; i++) {
@@ -2819,9 +3133,10 @@
           var mPend = Boolean(pendingSlots[mKey]), aPend = Boolean(pendingSlots[aKey]);
           var isMNow = mHas && nearest && nearest.stt === r.stt && nearest.session === "m";
           var isANow = aHas && nearest && nearest.stt === r.stt && nearest.session === "a";
+          var rowCls = (!mHas ? "no-morning-row " : "") + (!aHas ? "no-afternoon-row" : "");
 
           htmlParts.push(
-            "<tr data-stt=\"" + r.stt + "\">" +
+            "<tr data-stt=\"" + r.stt + "\"" + (rowCls ? " class=\"" + rowCls.trim() + "\"" : "") + ">" +
               "<td class=\"stt-cell\">" + r.stt + "</td>" +
               "<td class=\"time-cell m-col" + (mSel ? " selected" : "") + (isMNow ? " now-cell" : "") + "\"" + (mHas ? " data-now-slot=\"m:" + r.stt + "\"" : "") + ">" +
                 (mHas ? (r.morningStart + (isMNow ? "<span class=\"now-badge\">HIỆN TẠI</span>" : "")) : "<span style=\"color:#94A3B8;\">—</span>") +
@@ -3737,11 +4052,132 @@
           $("settingsAlertBox").style.display = "none";
           $("settingsOkBox").style.display = "flex";
         }
+        renderSettingsOverlapAudit(an);
+      }
+
+      function renderSettingsOverlapAudit(an) {
+        function emptyCat() {
+          return { timeCount: 0, pairCount: 0, sameMachineTimeCount: 0, sameMachinePairCount: 0, diffMachineTimeCount: 0, diffMachinePairCount: 0 };
+        }
+        var au = an.overlapAudit || {
+          uniqueOverlapTimes: 0, morningOverlapTimes: 0, afternoonOverlapTimes: 0, totalOverlapPairs: 0,
+          startStart: emptyCat(), endEnd: emptyCat(), startEnd: emptyCat(), items: []
+        };
+        var ss = au.startStart || emptyCat();
+        var ee = au.endEnd || emptyCat();
+        var se = au.startEnd || emptyCat();
+        var mCount = (settingsDraft.machines || []).length;
+        $("auditTitleText").textContent = "Rà soát & đếm số giờ trùng nhau (gộp tất cả " + mCount + " máy)";
+        $("auditSessionBreakdown").textContent = "Tổng: " + au.uniqueOverlapTimes + " mốc (" + au.totalOverlapPairs + " cặp) · Sáng: " + au.morningOverlapTimes + " mốc · Chiều: " + au.afternoonOverlapTimes + " mốc";
+
+        $("auditSSCount").textContent = ss.timeCount + " mốc";
+        $("auditSSCount").style.color = ss.timeCount > 0 ? "#DC2626" : "#15803D";
+        $("auditSSPairs").textContent = ss.pairCount + " cặp";
+        $("auditSSSame").textContent = ss.sameMachineTimeCount + " mốc (" + ss.sameMachinePairCount + " cặp)";
+        $("auditSSDiff").textContent = ss.diffMachineTimeCount + " mốc (" + ss.diffMachinePairCount + " cặp)";
+
+        $("auditEECount").textContent = ee.timeCount + " mốc";
+        $("auditEECount").style.color = ee.timeCount > 0 ? "#DC2626" : "#15803D";
+        $("auditEEPairs").textContent = ee.pairCount + " cặp";
+        $("auditEESame").textContent = ee.sameMachineTimeCount + " mốc (" + ee.sameMachinePairCount + " cặp)";
+        $("auditEEDiff").textContent = ee.diffMachineTimeCount + " mốc (" + ee.diffMachinePairCount + " cặp)";
+
+        $("auditSECount").textContent = se.timeCount + " mốc";
+        $("auditSECount").style.color = se.timeCount > 0 ? "#B45309" : "#15803D";
+        $("auditSEPairs").textContent = se.pairCount + " cặp";
+        $("auditSESame").textContent = se.sameMachineTimeCount + " mốc (" + se.sameMachinePairCount + " cặp)";
+        $("auditSEDiff").textContent = se.diffMachineTimeCount + " mốc (" + se.diffMachinePairCount + " cặp)";
+
+        $("btnToggleAuditDetail").textContent = auditExpanded
+          ? "Thu gọn danh sách"
+          : ("Rà soát chi tiết (" + au.uniqueOverlapTimes + " mốc)");
+
+        var tBtns = $("auditTypeTabs").querySelectorAll("[data-audit-type]");
+        for (var i = 0; i < tBtns.length; i++) {
+          var tp = tBtns[i].getAttribute("data-audit-type");
+          tBtns[i].classList.toggle("active", tp === auditTypeFilter);
+          if (tp === "all") tBtns[i].textContent = "Tất cả (" + au.uniqueOverlapTimes + ")";
+          else if (tp === "start-start") tBtns[i].textContent = "Trùng BĐ (" + ss.timeCount + ")";
+          else if (tp === "end-end") tBtns[i].textContent = "Trùng KT (" + ee.timeCount + ")";
+          else if (tp === "start-end") tBtns[i].textContent = "BĐ ↔ KT (" + se.timeCount + ")";
+        }
+        var scBtns = $("auditScopeTabs").querySelectorAll("[data-audit-scope]");
+        for (var sIdx = 0; sIdx < scBtns.length; sIdx++) {
+          var scVal = scBtns[sIdx].getAttribute("data-audit-scope");
+          scBtns[sIdx].classList.toggle("active", scVal === auditScopeFilter);
+        }
+        var sBtns = $("auditSessionTabs").querySelectorAll("[data-audit-sess]");
+        for (var j = 0; j < sBtns.length; j++) {
+          var sp = sBtns[j].getAttribute("data-audit-sess");
+          sBtns[j].classList.toggle("active", sp === auditSessionFilter);
+        }
+
+        $("auditDetailWrap").style.display = auditExpanded ? "flex" : "none";
+        if (!auditExpanded) return;
+
+        var filtered = au.items.filter(function (item) {
+          if (auditSessionFilter === "m" && item.session === "a") return false;
+          if (auditSessionFilter === "a" && item.session === "m") return false;
+          if (auditTypeFilter === "start-start") {
+            if (auditScopeFilter === "same") return item.hasStartStartSame;
+            if (auditScopeFilter === "diff") return item.hasStartStartDiff;
+            return item.hasStartStart;
+          }
+          if (auditTypeFilter === "end-end") {
+            if (auditScopeFilter === "same") return item.hasEndEndSame;
+            if (auditScopeFilter === "diff") return item.hasEndEndDiff;
+            return item.hasEndEnd;
+          }
+          if (auditTypeFilter === "start-end") {
+            if (auditScopeFilter === "same") return item.hasStartEndSame;
+            if (auditScopeFilter === "diff") return item.hasStartEndDiff;
+            return item.hasStartEnd;
+          }
+          if (auditScopeFilter === "same") return item.hasStartStartSame || item.hasEndEndSame || item.hasStartEndSame;
+          if (auditScopeFilter === "diff") return item.hasStartStartDiff || item.hasEndEndDiff || item.hasStartEndDiff;
+          return true;
+        });
+
+        if (!filtered.length) {
+          $("auditEmptyMsg").style.display = "block";
+          $("auditTableWrap").style.display = "none";
+          return;
+        }
+        $("auditEmptyMsg").style.display = "none";
+        $("auditTableWrap").style.display = "block";
+        function scopeLbl(same, diff) {
+          if (same && diff) return "Cùng máy, Khác máy";
+          if (same) return "Cùng máy";
+          return "Khác máy";
+        }
+        $("auditTableBody").innerHTML = filtered.map(function (item) {
+          var lines = [];
+          if (item.hasStartStart) lines.push("<div style=\"color:#B91C1C;\">Trùng BĐ (" + scopeLbl(item.hasStartStartSame, item.hasStartStartDiff) + ")</div>");
+          if (item.hasEndEnd) lines.push("<div style=\"color:#B91C1C;\">Trùng KT (" + scopeLbl(item.hasEndEndSame, item.hasEndEndDiff) + ")</div>");
+          if (item.hasStartEnd) lines.push("<div style=\"color:#B45309;\">BĐ ↔ KT (" + scopeLbl(item.hasStartEndSame, item.hasStartEndDiff) + ")</div>");
+          var sTxt = item.startSlots.length
+            ? item.startSlots.map(function (s) { return s.machineName + " (STT " + s.stt + ")"; }).join(", ")
+            : "—";
+          var eTxt = item.endSlots.length
+            ? item.endSlots.map(function (s) { return s.machineName + " (STT " + s.stt + ")"; }).join(", ")
+            : "—";
+          return "<tr>" +
+            "<td class=\"mono\" style=\"font-weight:800;white-space:nowrap;\">" + escXmlGas(item.time) + "</td>" +
+            "<td style=\"white-space:nowrap;\">" + escXmlGas(item.sessionLabel) + "</td>" +
+            "<td style=\"font-weight:700;white-space:nowrap;font-size:11px;line-height:1.45;\">" + lines.join("") + "</td>" +
+            "<td class=\"mono\" style=\"font-size:11px;\">" + escXmlGas(sTxt) + "</td>" +
+            "<td class=\"mono\" style=\"font-size:11px;color:var(--muted);\">" + escXmlGas(eTxt) + "</td>" +
+          "</tr>";
+        }).join("");
       }
 
       function openScheduleSettingsModal() {
         document.body.classList.remove("mobile-sidebar-open");
         settingsDraft = cloneSettings(activeSettings);
+        auditExpanded = false;
+        auditTypeFilter = "all";
+        auditScopeFilter = "all";
+        auditSessionFilter = "all";
         $("setResetConfirmWrap").style.display = "none";
         $("setResetAskBtn").style.display = "inline-flex";
         syncSettingsModalFromDraft();
@@ -3849,6 +4285,29 @@
       $("btnResetSettingsDefault").addEventListener("click", function () {
         settingsDraft = cloneSettings(DEFAULT_SCHEDULE_SETTINGS);
         syncSettingsModalFromDraft();
+      });
+
+      $("btnToggleAuditDetail").addEventListener("click", function () {
+        auditExpanded = !auditExpanded;
+        renderSettingsOverlapAudit(analyzeScheduleSettings(settingsDraft));
+      });
+      $("auditTypeTabs").addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest("[data-audit-type]") : null;
+        if (!btn) return;
+        auditTypeFilter = btn.getAttribute("data-audit-type") || "all";
+        renderSettingsOverlapAudit(analyzeScheduleSettings(settingsDraft));
+      });
+      $("auditScopeTabs").addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest("[data-audit-scope]") : null;
+        if (!btn) return;
+        auditScopeFilter = btn.getAttribute("data-audit-scope") || "all";
+        renderSettingsOverlapAudit(analyzeScheduleSettings(settingsDraft));
+      });
+      $("auditSessionTabs").addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest("[data-audit-sess]") : null;
+        if (!btn) return;
+        auditSessionFilter = btn.getAttribute("data-audit-sess") || "all";
+        renderSettingsOverlapAudit(analyzeScheduleSettings(settingsDraft));
       });
 
       $("scheduleSettingsForm").addEventListener("submit", function (e) {

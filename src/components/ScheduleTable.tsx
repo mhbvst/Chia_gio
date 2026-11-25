@@ -47,10 +47,39 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   onSwitchMobileSegment,
 }) => {
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
   const theadRef = useRef<HTMLTableSectionElement | null>(null);
+  const grpRowRef = useRef<HTMLTableRowElement | null>(null);
   const rowRefs = useRef<Record<number, HTMLTableRowElement | null>>({});
+  const [toolbarHeight, setToolbarHeight] = useState<number>(68);
+  const [grpHeight, setGrpHeight] = useState<number>(33);
   const [pendingScrollStt, setPendingScrollStt] = useState<number | null>(null);
   const [flashStt, setFlashStt] = useState<number | null>(null);
+
+  useEffect(() => {
+    const tbEl = toolbarRef.current;
+    const grpEl = grpRowRef.current;
+    if (!tbEl && !grpEl) return;
+    const syncHeights = () => {
+      if (tbEl) {
+        const h = Math.floor(tbEl.getBoundingClientRect().height);
+        if (h > 0) setToolbarHeight(h);
+      }
+      if (grpEl) {
+        const gh = Math.floor(grpEl.getBoundingClientRect().height);
+        if (gh > 0) setGrpHeight(gh);
+      }
+    };
+    syncHeights();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(syncHeights);
+      if (tbEl) ro.observe(tbEl);
+      if (grpEl) ro.observe(grpEl);
+      return () => ro.disconnect();
+    }
+    window.addEventListener('resize', syncHeights);
+    return () => window.removeEventListener('resize', syncHeights);
+  }, [loading]);
 
   const rows = machine.rows;
 
@@ -102,16 +131,19 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   }, [isToday, machine.rows, nowTick]);
 
   const scrollToRow = (stt: number) => {
-    const container = tableScrollRef.current;
     const rowEl = rowRefs.current[stt];
-    if (!container || !rowEl) return;
+    if (!rowEl) return;
 
+    const tbH = toolbarRef.current ? Math.floor(toolbarRef.current.getBoundingClientRect().height) : toolbarHeight;
     const theadHeight = theadRef.current?.offsetHeight || 72;
-    const visibleBodyHeight = Math.max(120, container.clientHeight - theadHeight);
+    const stickyTop = tbH + theadHeight;
+    const rect = rowEl.getBoundingClientRect();
+    const rowTopOnPage = window.scrollY + rect.top;
+    const visibleBodyHeight = Math.max(120, window.innerHeight - stickyTop);
     const targetTop =
-      rowEl.offsetTop - theadHeight - visibleBodyHeight / 2 + rowEl.offsetHeight / 2;
+      rowTopOnPage - stickyTop - visibleBodyHeight / 2 + rect.height / 2;
 
-    container.scrollTo({
+    window.scrollTo({
       top: Math.max(0, targetTop),
       behavior: 'smooth',
     });
@@ -146,6 +178,16 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   };
 
   const totalSelectable = useMemo(() => countTotalSlots(rows), [rows]);
+  const { morningCount, afternoonCount } = useMemo(() => {
+    let mCnt = 0;
+    let aCnt = 0;
+    for (const r of rows) {
+      if (r.morningStart) mCnt++;
+      if (r.afternoonStart) aCnt++;
+    }
+    return { morningCount: mCnt, afternoonCount: aCnt };
+  }, [rows]);
+  const mobileRowCount = mobileSegment === 'morning' ? morningCount : afternoonCount;
   const totalChecked = useMemo(
     () => countCheckedSlotsInRows(rows, slots).totalChecked,
     [rows, slots]
@@ -172,7 +214,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       id={machine.id}
       role="tabpanel"
       aria-label={machine.fullTitle}
-      className="print-card-shell bg-white dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800 rounded-xl overflow-hidden shadow-[0_2px_6px_rgba(8,53,120,0.06)]"
+      className="print-card-shell bg-white dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800 rounded-xl overflow-x-clip shadow-[0_2px_6px_rgba(8,53,120,0.06)]"
     >
       {/* Print-only hospital header */}
       <div className="hidden print-only px-4 pt-3 pb-2 border-b border-slate-400">
@@ -192,7 +234,10 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       </div>
 
       {/* Table toolbar header */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900">
+      <div
+        ref={toolbarRef}
+        className="no-print sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 rounded-t-xl border-b border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(8,53,120,0.04)]"
+      >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#334155] dark:text-slate-400">
             <span className="font-bold text-[#0D4EA6] dark:text-sky-400">Chẩn đoán hình ảnh</span>
@@ -200,7 +245,12 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
             <span>Phụ trách: {machine.supervisor}</span>
             <span aria-hidden="true">·</span>
             <span className="font-mono font-bold tabular-nums text-[#0F172A] dark:text-slate-300">
-              {rows.length}/{machine.totalRows} khung giờ
+              <span className="md:hidden">
+                {mobileRowCount} ca ({mobileSegment === 'morning' ? 'Sáng' : 'Chiều'})
+              </span>
+              <span className="hidden md:inline">
+                {rows.length} hàng · Sáng {morningCount} / Chiều {afternoonCount} ca
+              </span>
             </span>
           </div>
           <h2 className="text-base sm:text-lg font-extrabold text-[#083578] dark:text-slate-100 mt-0.5 truncate">
@@ -267,7 +317,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       {/* Single-page scrollable Schedule Table */}
       <div
         ref={tableScrollRef}
-        className="print-table-wrap overflow-auto max-h-[calc(100vh-250px)] min-h-[380px]"
+        className="print-table-wrap overflow-x-clip rounded-b-xl"
       >
         {loading ? (
           <div className="p-4 space-y-2" aria-busy="true" aria-label="Đang tải dữ liệu lịch chụp">
@@ -280,7 +330,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
           </div>
         ) : (
           <table
-            className="xq-print-table w-full md:min-w-[800px] border-separate border-spacing-0"
+            className="xq-print-table w-full border-separate border-spacing-0"
             data-machine={machine.name}
           >
             <colgroup>
@@ -293,54 +343,63 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
               <col className={`w-[26%] md:w-[8%] ${hideAfternoonMobile}`} />
             </colgroup>
             <thead ref={theadRef}>
-              <tr>
+              <tr ref={grpRowRef}>
                 <th
                   rowSpan={2}
-                  className="sticky top-0 z-20 bg-[#DCEBFF] dark:bg-slate-800 text-[#083578] dark:text-slate-200 text-xs font-extrabold uppercase tracking-wider px-3 py-2.5 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center"
+                  style={{ top: toolbarHeight }}
+                  className="sticky z-20 bg-[#DCEBFF] dark:bg-slate-800 text-[#083578] dark:text-slate-200 text-xs font-extrabold uppercase tracking-wider px-3 py-2.5 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center"
                 >
                   STT
                 </th>
                 <th
                   colSpan={3}
-                  className={`sticky top-0 z-20 bg-[#D0E4FF] dark:bg-sky-950/80 text-[#083578] dark:text-sky-200 text-xs font-extrabold uppercase tracking-wider px-3 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center ${hideMorningMobile}`}
+                  style={{ top: toolbarHeight }}
+                  className={`sticky z-20 bg-[#D0E4FF] dark:bg-sky-950/80 text-[#083578] dark:text-sky-200 text-xs leading-4 font-extrabold uppercase tracking-wider px-3 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center ${hideMorningMobile}`}
                 >
                   BUỔI SÁNG
                 </th>
                 <th
                   colSpan={3}
-                  className={`sticky top-0 z-20 bg-[#DCEBFF] dark:bg-blue-950/80 text-[#083578] dark:text-blue-200 text-xs font-extrabold uppercase tracking-wider px-3 py-2 border-b border-[#B6CBE3] dark:border-slate-700 text-center ${hideAfternoonMobile}`}
+                  style={{ top: toolbarHeight }}
+                  className={`sticky z-20 bg-[#DCEBFF] dark:bg-blue-950/80 text-[#083578] dark:text-blue-200 text-xs leading-4 font-extrabold uppercase tracking-wider px-3 py-2 border-b border-[#B6CBE3] dark:border-slate-700 text-center ${hideAfternoonMobile}`}
                 >
                   BUỔI CHIỀU
                 </th>
               </tr>
               <tr>
                 <th
-                  className={`sticky top-[33px] z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
+                  style={{ top: toolbarHeight + grpHeight }}
+                  className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
                 >
                   TG bắt đầu
                 </th>
                 <th
-                  className={`sticky top-[33px] z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
+                  style={{ top: toolbarHeight + grpHeight }}
+                  className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
                 >
                   TG kết thúc
                 </th>
                 <th
-                  className={`sticky top-[33px] z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
+                  style={{ top: toolbarHeight + grpHeight }}
+                  className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
                 >
                   Chọn
                 </th>
                 <th
-                  className={`sticky top-[33px] z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
+                  style={{ top: toolbarHeight + grpHeight }}
+                  className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
                 >
                   TG bắt đầu
                 </th>
                 <th
-                  className={`sticky top-[33px] z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
+                  style={{ top: toolbarHeight + grpHeight }}
+                  className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
                 >
                   TG kết thúc
                 </th>
                 <th
-                  className={`sticky top-[33px] z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
+                  style={{ top: toolbarHeight + grpHeight }}
+                  className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
                 >
                   Chọn
                 </th>
@@ -366,17 +425,23 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   boxShadow: 'inset 0 0 0 1px var(--sel-border)',
                 };
 
+                const hideRowOnMobile =
+                  (mobileSegment === 'morning' && !hasMorning) ||
+                  (mobileSegment === 'afternoon' && !hasAfternoon);
+
                 return (
                   <tr
                     key={row.stt}
                     ref={(el) => {
                       rowRefs.current[row.stt] = el;
                     }}
-                    className={
+                    className={`${
+                      hideRowOnMobile ? 'hidden md:table-row print-show-row ' : ''
+                    }${
                       isFlashed
                         ? 'bg-[#CBE0FF] dark:bg-sky-900/35'
                         : ''
-                    }
+                    }`}
                   >
                     {/* STT */}
                     <td
@@ -434,7 +499,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                           <input
                             type="checkbox"
                             className="xq-checkbox"
-                            checked={mChecked}
+                            checked={Boolean(mChecked)}
                             disabled={isReadOnly || mPending}
                             aria-label={`Chọn ca sáng STT ${row.stt}, ${row.morningStart} đến ${row.morningEnd}`}
                             onChange={(e) => onSlotClick(row, 'm', e.target.checked)}
@@ -502,7 +567,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                           <input
                             type="checkbox"
                             className="xq-checkbox"
-                            checked={aChecked}
+                            checked={Boolean(aChecked)}
                             disabled={isReadOnly || aPending}
                             aria-label={`Chọn ca chiều STT ${row.stt}, ${row.afternoonStart} đến ${row.afternoonEnd}`}
                             onChange={(e) => onSlotClick(row, 'a', e.target.checked)}
@@ -526,11 +591,14 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       {!loading && rows.length > 0 && (
         <div className="no-print flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-2.5 border-t border-[#C7D6E8] dark:border-slate-800 bg-[#EEF4FB]/80 dark:bg-slate-900/80 text-xs font-semibold text-[#334155] dark:text-slate-400">
           <span>
-            Hiển thị tất cả{' '}
-            <strong className="font-mono tabular-nums text-[#0F172A] dark:text-slate-200">
-              {rows.length}/{machine.totalRows}
+            Hiển thị{' '}
+            <strong className="md:hidden font-mono tabular-nums text-[#0F172A] dark:text-slate-200">
+              {mobileRowCount}/{mobileRowCount} ca {mobileSegment === 'morning' ? 'buổi sáng' : 'buổi chiều'}
+            </strong>
+            <strong className="hidden md:inline font-mono tabular-nums text-[#0F172A] dark:text-slate-200">
+              {rows.length} hàng (Sáng {morningCount} · Chiều {afternoonCount} ca)
             </strong>{' '}
-            khung giờ trên một trang
+            theo cài đặt giờ
           </span>
           <span className="font-mono tabular-nums">
             Đã chọn: <strong className="text-[#083578] dark:text-sky-300">{totalChecked}/{totalSelectable}</strong> ca
