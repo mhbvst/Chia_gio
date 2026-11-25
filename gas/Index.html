@@ -1127,7 +1127,7 @@
     .toast-stack {
       position: fixed;
       right: 16px;
-      bottom: 16px;
+      bottom: 76px;
       z-index: 90;
       display: flex;
       flex-direction: column;
@@ -1149,6 +1149,73 @@
     }
     .toast.success { border-color: #BBF7D0; }
     .toast.error { border-color: #FECACA; }
+
+    /* Multitasking PiP Clock */
+    .pip-launcher-btn {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 80;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: none;
+      background: #16A34A;
+      color: #FFFFFF;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 6px 18px rgba(22, 163, 74, 0.34);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 140ms ease, box-shadow 140ms ease;
+    }
+    .pip-launcher-btn:hover { background: #15803D; }
+    .pip-launcher-btn.is-active {
+      background: #083578;
+      box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.7), 0 6px 18px rgba(8, 53, 120, 0.34);
+    }
+    .pip-live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #34D399;
+      display: none;
+    }
+    .pip-launcher-btn.is-active .pip-live-dot { display: inline-block; }
+    .pip-fallback-card {
+      position: fixed;
+      right: 20px;
+      bottom: 74px;
+      z-index: 85;
+      width: 310px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: #0B1220;
+      color: #F1F5F9;
+      box-shadow: 0 18px 40px rgba(2, 6, 23, 0.55);
+      overflow: hidden;
+      display: none;
+      user-select: none;
+    }
+    .pip-fallback-card.open { display: block; }
+    .pip-fallback-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #111A2E;
+      border-bottom: 1px solid #1E293B;
+      cursor: grab;
+    }
+    .pip-fallback-head:active { cursor: grabbing; }
+    .pip-fallback-body { padding: 12px 16px; }
+    .pip-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .pip-row + .pip-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(148,163,184,0.16); }
+    .pip-lbl { font-size: 13px; font-weight: 600; color: #94A3B8; }
+    .pip-val { font-family: var(--font-mono); font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
     /* Print */
     .print-only { display: none; }
@@ -1393,10 +1460,10 @@
                 <h2 id="tableTitle" class="table-title">MÁY CHỤP X QUANG TITAN 2000</h2>
               </div>
               <div class="action-group">
-                <div id="toolbarTimeBox" class="toolbar-time-box" title="Thời gian bắt đầu đã chọn gần nhất / Đồng hồ thời gian thực (Giờ Việt Nam)">
+                <div id="toolbarTimeBox" class="toolbar-time-box" title="Giờ bắt đầu ca chụp đã chọn sau cùng / Đồng hồ thời gian thực (Giờ Việt Nam)">
                   <span class="toolbar-time-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
                   <div class="toolbar-time-meta">
-                    <div class="toolbar-time-lbl">Bắt đầu gần nhất / Hiện tại</div>
+                    <div class="toolbar-time-lbl">Đã chọn sau cùng / Hiện tại</div>
                     <div class="toolbar-time-val">
                       <span id="toolbarLastPick" class="toolbar-time-pick empty">--:--</span>
                       <span class="toolbar-time-sep">/</span>
@@ -1794,6 +1861,36 @@
     </div>
   </div>
 
+  <canvas id="pipClockCanvas" width="520" height="260" aria-hidden="true" style="position:fixed;left:-9999px;top:-9999px;pointer-events:none;"></canvas>
+  <video id="pipClockVideo" muted playsinline autoplay aria-hidden="true" style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;right:0;bottom:0;"></video>
+
+  <div id="pipFallbackCard" class="pip-fallback-card no-print" role="dialog" aria-label="Đồng hồ đa nhiệm">
+    <div id="pipFallbackHead" class="pip-fallback-head">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+        <span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;background:rgba(51,65,85,0.8);color:#E2E8F0;letter-spacing:0.04em;">TRỰC TIẾP</span>
+        <span id="pipFallbackMachine" style="font-size:11px;font-weight:600;color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">TITAN 2000</span>
+      </div>
+      <button id="btnClosePipFallback" type="button" aria-label="Đóng đồng hồ đa nhiệm" style="border:none;background:transparent;color:#94A3B8;font-size:16px;line-height:1;cursor:pointer;padding:2px 6px;">✕</button>
+    </div>
+    <div class="pip-fallback-body">
+      <div class="pip-row">
+        <span class="pip-lbl">Giờ hiện tại:</span>
+        <span id="pipFallbackNow" class="pip-val" style="color:#149CE0;">--:--:--</span>
+      </div>
+      <div class="pip-row">
+        <span class="pip-lbl">Giờ đã chọn:</span>
+        <span id="pipFallbackPick" class="pip-val" style="color:#CBD5E1;">--:--</span>
+      </div>
+      <div style="height:2px;margin-top:10px;border-radius:999px;background:rgba(16,185,129,0.85);"></div>
+    </div>
+  </div>
+
+  <button id="btnPipClock" class="pip-launcher-btn no-print" type="button" title="Mở cửa sổ đồng hồ nổi luôn hiển thị trên các ứng dụng khác">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>
+    <span id="pipLauncherText">Mở đồng hồ đa nhiệm</span>
+    <span class="pip-live-dot" aria-hidden="true"></span>
+  </button>
+
   <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
   <script>
@@ -1806,6 +1903,7 @@
       var MOBILE_SEG_KEY = "xq_mobile_segment";
       var SIDEBAR_KEY = "xq_sidebar_collapsed";
       var SETTINGS_KEY = "xq_schedule_settings_v1";
+      var PICK_ORDER_KEY = "xq_pick_order_v1";
       var MACHINE_KEY_RE = /^[A-Z0-9_]{2,24}$/;
 
       var DEFAULT_MACHINES_META = [
@@ -2642,6 +2740,102 @@
       var todayKey = vnNow.dateKey;
       var viewedDateKey = todayKey;
       var statesByMachine = {};
+      var lastStatesByDate = {};
+      var pickedOrderByCtx = (function () {
+        try {
+          var raw = storage.get(PICK_ORDER_KEY);
+          if (!raw) return {};
+          var parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+          var cleaned = {};
+          Object.keys(parsed).forEach(function (k) {
+            if (Array.isArray(parsed[k])) {
+              cleaned[k] = parsed[k].filter(function (v) { return typeof v === "string"; }).slice(-40);
+            }
+          });
+          return cleaned;
+        } catch (e) {
+          return {};
+        }
+      })();
+      function savePickOrderMap() {
+        try {
+          storage.set(PICK_ORDER_KEY, JSON.stringify(pickedOrderByCtx));
+        } catch (e) {}
+      }
+      function updatePickOrder(dk, mk, slotKey, isChecked) {
+        var ctxKey = dk + "__" + mk;
+        var list = (pickedOrderByCtx[ctxKey] || []).filter(function (k) { return k !== slotKey; });
+        var updated = isChecked ? list.concat([slotKey]).slice(-40) : list;
+        if (updated.length > 0) pickedOrderByCtx[ctxKey] = updated;
+        else delete pickedOrderByCtx[ctxKey];
+        savePickOrderMap();
+      }
+      function resolveLastPickedInfo(mk) {
+        var key = mk || activeMachine;
+        var mCfg = MACHINES[key] || MACHINE_LIST[0];
+        var mSlots = statesByMachine[key] || {};
+        var rows = (mCfg && mCfg.rows) || [];
+        var rowByStt = {};
+        for (var i = 0; i < rows.length; i++) {
+          rowByStt[rows[i].stt] = rows[i];
+        }
+
+        var chosen = null;
+        var chosenMin = -1;
+        var ctxKey = viewedDateKey + "__" + ((mCfg && mCfg.key) || key);
+        var order = pickedOrderByCtx[ctxKey] || [];
+        for (var j = order.length - 1; j >= 0; j--) {
+          var sk = order[j];
+          if (!mSlots[sk]) continue;
+          var match = /^([ma]):(\d+)$/.exec(sk);
+          if (!match) continue;
+          var r = rowByStt[Number(match[2])];
+          if (!r) continue;
+          var st = match[1] === "m" ? r.morningStart : r.afternoonStart;
+          if (st) {
+            chosen = st;
+            chosenMin = parseHHMM(st);
+            if (chosenMin === null) chosenMin = -1;
+            break;
+          }
+        }
+
+        if (!chosen) {
+          for (var idx = 0; idx < rows.length; idx++) {
+            var r2 = rows[idx];
+            if (mSlots["m:" + r2.stt]) {
+              var mm = parseHHMM(r2.morningStart);
+              if (mm !== null && mm > chosenMin) { chosenMin = mm; chosen = r2.morningStart; }
+            }
+            if (mSlots["a:" + r2.stt]) {
+              var am = parseHHMM(r2.afternoonStart);
+              if (am !== null && am > chosenMin) { chosenMin = am; chosen = r2.afternoonStart; }
+            }
+          }
+        }
+
+        var statusClass = "";
+        var color = "#CBD5E1";
+        if (!chosen) {
+          statusClass = "empty";
+        } else {
+          color = "#F8FAFC";
+          if (viewedDateKey === todayKey && chosenMin >= 0) {
+            var p = getVNParts();
+            var diff = (p.hour * 60 + p.minute) - chosenMin;
+            if (diff === 0) { statusClass = "now"; color = "#34D399"; }
+            else if (diff > 30) { statusClass = "overdue"; color = "#F87171"; }
+            else if (diff > 0) { statusClass = "past"; color = "#FBBF24"; }
+          }
+        }
+        return {
+          machineName: (mCfg && mCfg.name) || key,
+          picked: chosen || "--:--",
+          color: color,
+          statusClass: statusClass
+        };
+      }
       var lastSnapshotSig = "";
       var loadingStates = true;
       var pendingSlots = {};
@@ -2981,38 +3175,20 @@
         var activeCount = counts.totalChecked;
         $("printCount").textContent = "Đã chọn: " + activeCount + " / " + activeTotal + " ca";
 
-        var rows = MACHINES[activeMachine].rows;
-        var best = null, bestMin = -1;
-        for (var i = 0; i < rows.length; i++) {
-          var r = rows[i];
-          if (activeSlots["m:" + r.stt]) {
-            var mm = parseHHMM(r.morningStart);
-            if (mm !== null && mm > bestMin) { bestMin = mm; best = r.morningStart; }
-          }
-          if (activeSlots["a:" + r.stt]) {
-            var am = parseHHMM(r.afternoonStart);
-            if (am !== null && am > bestMin) { bestMin = am; best = r.afternoonStart; }
-          }
-        }
+        var pickInfo = resolveLastPickedInfo(activeMachine);
         var tbPick = $("toolbarLastPick");
         if (tbPick) {
-          tbPick.textContent = best || "--:--";
-          tbPick.className = "toolbar-time-pick";
-          if (!best) {
-            tbPick.classList.add("empty");
-          } else if (viewedDateKey === todayKey) {
-            var p = getVNParts();
-            var diff = (p.hour * 60 + p.minute) - bestMin;
-            if (diff === 0) tbPick.classList.add("now");
-            else if (diff > 30) tbPick.classList.add("overdue");
-            else if (diff > 0) tbPick.classList.add("past");
-          }
+          tbPick.textContent = pickInfo.picked;
+          tbPick.className = "toolbar-time-pick" + (pickInfo.statusClass ? " " + pickInfo.statusClass : "");
         }
         var isToday = viewedDateKey === todayKey;
         $("btnToday").classList.toggle("primary", isToday);
         $("readOnlyBanner").style.display = isToday ? "none" : "flex";
         $("readOnlyDateText").textContent = formatDateVN(viewedDateKey);
         if ($("bannerDate")) $("bannerDate").textContent = "Ngày " + formatDateVN(viewedDateKey);
+        if (typeof pipState !== "undefined" && (pipState.active || pipState.fallbackOpen)) {
+          drawPipClockFrame();
+        }
       }
 
       function findJumpTarget() {
@@ -3208,6 +3384,32 @@
             MACHINE_LIST.forEach(function (m) {
               nextStates[m.key] = (res.machines && res.machines[m.key] && res.machines[m.key].state) || {};
             });
+            var prevForDate = lastStatesByDate[viewedDateKey];
+            lastStatesByDate[viewedDateKey] = nextStates;
+            var histChanged = false;
+            MACHINE_LIST.forEach(function (m) {
+              var ctxKey = viewedDateKey + "__" + m.key;
+              var curState = nextStates[m.key] || {};
+              var existingOrder = pickedOrderByCtx[ctxKey] || [];
+              var updatedOrder = existingOrder.filter(function (sk) { return Boolean(curState[sk]); });
+              if (updatedOrder.length !== existingOrder.length) histChanged = true;
+              if (prevForDate) {
+                var oldState = prevForDate[m.key] || {};
+                Object.keys(curState).forEach(function (sk) {
+                  if (curState[sk] && !oldState[sk] && updatedOrder[updatedOrder.length - 1] !== sk) {
+                    updatedOrder = updatedOrder.filter(function (x) { return x !== sk; }).concat([sk]);
+                    histChanged = true;
+                  }
+                });
+              }
+              if (updatedOrder.length > 0) {
+                pickedOrderByCtx[ctxKey] = updatedOrder.slice(-40);
+              } else if (pickedOrderByCtx[ctxKey]) {
+                delete pickedOrderByCtx[ctxKey];
+                histChanged = true;
+              }
+            });
+            if (histChanged) savePickOrderMap();
             var sig = todayKey + "|" + viewedDateKey + "|" + JSON.stringify(nextStates) + "|" + JSON.stringify(activeSettings);
             var changed = sig !== lastSnapshotSig || loadingStates;
             lastSnapshotSig = sig;
@@ -3240,6 +3442,8 @@
         pendingSlots[slotKey] = true;
         if (nextChecked) statesByMachine[mk][slotKey] = true;
         else delete statesByMachine[mk][slotKey];
+        lastStatesByDate[dk] = statesByMachine;
+        updatePickOrder(dk, mk, slotKey, nextChecked);
         updateMetadataAndCounts();
         renderTable();
 
@@ -3248,7 +3452,8 @@
             delete pendingSlots[slotKey];
             if (!res || !res.ok) throw new Error((res && res.message) || "Không thể lưu trạng thái ca.");
             statesByMachine[mk] = res.state || {};
-            lastSnapshotSig = todayKey + "|" + viewedDateKey + "|" + JSON.stringify(statesByMachine);
+            lastStatesByDate[dk] = statesByMachine;
+            lastSnapshotSig = todayKey + "|" + viewedDateKey + "|" + JSON.stringify(statesByMachine) + "|" + JSON.stringify(activeSettings);
             updateMetadataAndCounts();
             renderTable();
           })
@@ -3256,6 +3461,8 @@
             delete pendingSlots[slotKey];
             if (nextChecked) delete statesByMachine[mk][slotKey];
             else statesByMachine[mk][slotKey] = true;
+            lastStatesByDate[dk] = statesByMachine;
+            updatePickOrder(dk, mk, slotKey, !nextChecked);
             updateMetadataAndCounts();
             renderTable();
             showToast("error", err.message || "Lỗi lưu dữ liệu lên máy chủ.");
@@ -4217,6 +4424,9 @@
             $("setResetConfirmBtn").textContent = "Xác nhận xóa";
             if (!res || !res.ok) throw new Error((res && res.message) || "Reset thất bại.");
             statesByMachine[targetMk] = {};
+            if (lastStatesByDate[viewedDateKey]) lastStatesByDate[viewedDateKey][targetMk] = {};
+            delete pickedOrderByCtx[viewedDateKey + "__" + targetMk];
+            savePickOrderMap();
             lastSnapshotSig = todayKey + "|" + viewedDateKey + "|" + JSON.stringify(statesByMachine) + "|" + JSON.stringify(activeSettings);
             updateMetadataAndCounts();
             renderTable();
@@ -4371,10 +4581,178 @@
       updateClock();
       $("dateInput").value = todayKey;
 
+      /* ===== Multitasking Clock (Picture-in-Picture + Floating Fallback) ===== */
+      var pipState = {
+        active: false,
+        fallbackOpen: false,
+        stream: null,
+        dragging: false,
+        startX: 0,
+        startY: 0,
+        origX: 0,
+        origY: 0
+      };
+
+      function getCurrentLastPickInfo() {
+        return resolveLastPickedInfo(activeMachine);
+      }
+
+      function syncPipButtonUI() {
+        var isOpen = pipState.active || pipState.fallbackOpen;
+        var btn = $("btnPipClock");
+        var lbl = $("pipLauncherText");
+        if (btn) btn.classList.toggle("is-active", isOpen);
+        if (lbl) lbl.textContent = isOpen ? "Đóng đồng hồ đa nhiệm" : "Mở đồng hồ đa nhiệm";
+      }
+
+      function drawPipClockFrame() {
+        var p = getVNParts();
+        var info = getCurrentLastPickInfo();
+        var fbNow = $("pipFallbackNow");
+        var fbPick = $("pipFallbackPick");
+        var fbMach = $("pipFallbackMachine");
+        if (fbNow) fbNow.textContent = p.timeStr;
+        if (fbPick) {
+          fbPick.textContent = info.picked;
+          fbPick.style.color = info.color;
+        }
+        if (fbMach) fbMach.textContent = info.machineName;
+
+        var canvas = $("pipClockCanvas");
+        if (!canvas) return;
+        var ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        var W = canvas.width, H = canvas.height;
+        ctx.fillStyle = "#0B1220";
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.14)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(32, 134);
+        ctx.lineTo(W - 32, 134);
+        ctx.stroke();
+
+        ctx.fillStyle = "#64748B";
+        ctx.font = "700 15px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(viewedDateKey === todayKey ? info.machineName : (info.machineName + " · Chỉ xem"), W / 2, 26);
+
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#94A3B8";
+        ctx.font = "600 28px system-ui, sans-serif";
+        ctx.fillText("Giờ hiện tại:", 34, 88);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#149CE0";
+        ctx.font = "800 50px monospace";
+        ctx.fillText(p.timeStr, W - 34, 88);
+
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#94A3B8";
+        ctx.font = "600 28px system-ui, sans-serif";
+        ctx.fillText("Giờ đã chọn:", 34, 184);
+        ctx.textAlign = "right";
+        ctx.fillStyle = info.color;
+        ctx.font = "800 50px monospace";
+        ctx.fillText(info.picked, W - 34, 184);
+      }
+
+      var pipVideoEl = $("pipClockVideo");
+      if (pipVideoEl) {
+        pipVideoEl.addEventListener("enterpictureinpicture", function () {
+          pipState.active = true;
+          syncPipButtonUI();
+        });
+        pipVideoEl.addEventListener("leavepictureinpicture", function () {
+          pipState.active = false;
+          pipVideoEl.pause();
+          syncPipButtonUI();
+        });
+      }
+
+      $("btnClosePipFallback").addEventListener("click", function () {
+        pipState.fallbackOpen = false;
+        $("pipFallbackCard").classList.remove("open");
+        syncPipButtonUI();
+      });
+
+      $("pipFallbackHead").addEventListener("pointerdown", function (e) {
+        var card = $("pipFallbackCard");
+        if (!card) return;
+        var rect = card.getBoundingClientRect();
+        pipState.dragging = true;
+        pipState.startX = e.clientX;
+        pipState.startY = e.clientY;
+        pipState.origX = rect.left;
+        pipState.origY = rect.top;
+      });
+      window.addEventListener("pointermove", function (e) {
+        if (!pipState.dragging) return;
+        var card = $("pipFallbackCard");
+        if (!card) return;
+        var nx = Math.min(Math.max(8, pipState.origX + (e.clientX - pipState.startX)), Math.max(8, window.innerWidth - 320));
+        var ny = Math.min(Math.max(8, pipState.origY + (e.clientY - pipState.startY)), Math.max(8, window.innerHeight - 170));
+        card.style.left = nx + "px";
+        card.style.top = ny + "px";
+        card.style.right = "auto";
+        card.style.bottom = "auto";
+      });
+      window.addEventListener("pointerup", function () { pipState.dragging = false; });
+
+      $("btnPipClock").addEventListener("click", function () {
+        if (pipState.active) {
+          if (document.pictureInPictureElement) {
+            document.exitPictureInPicture().catch(function () {});
+          }
+          pipState.active = false;
+          syncPipButtonUI();
+          return;
+        }
+        if (pipState.fallbackOpen) {
+          pipState.fallbackOpen = false;
+          $("pipFallbackCard").classList.remove("open");
+          syncPipButtonUI();
+          return;
+        }
+        drawPipClockFrame();
+        var canvas = $("pipClockCanvas");
+        var video = $("pipClockVideo");
+        var canPip = canvas && video && typeof canvas.captureStream === "function" &&
+          typeof video.requestPictureInPicture === "function" && Boolean(document.pictureInPictureEnabled);
+
+        if (canPip) {
+          try {
+            if (!pipState.stream) pipState.stream = canvas.captureStream(10);
+            if (video.srcObject !== pipState.stream) video.srcObject = pipState.stream;
+            video.play().then(function () {
+              return video.requestPictureInPicture();
+            }).then(function () {
+              pipState.active = true;
+              pipState.fallbackOpen = false;
+              $("pipFallbackCard").classList.remove("open");
+              syncPipButtonUI();
+            }).catch(function () {
+              pipState.fallbackOpen = true;
+              $("pipFallbackCard").classList.add("open");
+              syncPipButtonUI();
+              showToast("info", "Đã mở đồng hồ nổi trong trang (khung nhúng hiện tại không hỗ trợ PiP ngoài cửa sổ).");
+            });
+            return;
+          } catch (_err) {}
+        }
+        pipState.fallbackOpen = true;
+        $("pipFallbackCard").classList.add("open");
+        syncPipButtonUI();
+        showToast("info", "Đã mở đồng hồ nổi trong trang.");
+      });
+
+      drawPipClockFrame();
+
       setInterval(function () {
         updateClock();
         updateMetadataAndCounts();
         refreshNowHighlightInPlace();
+        if (pipState.active || pipState.fallbackOpen) drawPipClockFrame();
       }, 1000);
 
       callGas("getAuthStatus").then(function (st) {

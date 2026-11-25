@@ -67,6 +67,7 @@ import {
 } from './components/Modals';
 import { ScheduleSettingsModal } from './components/ScheduleSettingsModal';
 import { ToastContainer, ToastItem } from './components/Toast';
+import { MultitaskingClockPip } from './components/MultitaskingClockPip';
 import { exportScheduleExcel } from './utils/excelExport';
 import { exportSchedulePdf } from './utils/pdfExport';
 
@@ -75,6 +76,7 @@ const DENSITY_STORAGE_KEY = 'xq_density_mode';
 const MOBILE_SEG_STORAGE_KEY = 'xq_mobile_segment';
 const SIDEBAR_STORAGE_KEY = 'xq_sidebar_collapsed';
 const SETTINGS_STORAGE_KEY = 'xq_schedule_settings_v1';
+const PICK_ORDER_STORAGE_KEY = 'xq_pick_order_v1';
 
 function themeStorageKey(mk: MachineKey): string {
   return `xq_v2_theme__${mk}`;
@@ -104,6 +106,29 @@ export default function App() {
   const [dateInput, setDateInput] = useState<string>(() => getTodayKeyVN());
   const [statesByMachine, setStatesByMachine] = useState<
     Record<MachineKey, Record<string, boolean>>
+  >({});
+  const [pickedOrderByCtx, setPickedOrderByCtx] = useState<Record<string, string[]>>(() => {
+    try {
+      const raw = localStorage.getItem(PICK_ORDER_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const clean: Record<string, string[]> = {};
+          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+            if (Array.isArray(v)) {
+              clean[k] = v.filter((x): x is string => typeof x === 'string').slice(-40);
+            }
+          }
+          return clean;
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return {};
+  });
+  const lastStatesByDateRef = useRef<
+    Record<string, Record<MachineKey, Record<string, boolean>>>
   >({});
   const [loadingStates, setLoadingStates] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -226,6 +251,44 @@ export default function App() {
         for (const mk of Object.keys(data.machines)) {
           nextStates[mk] = data.machines[mk]?.state || {};
         }
+      }
+      const resolvedDk = typeof data?.dateKey === 'string' && data.dateKey ? data.dateKey : dk;
+      const prevForDate = resolvedDk ? lastStatesByDateRef.current[resolvedDk] : undefined;
+      if (resolvedDk) {
+        lastStatesByDateRef.current[resolvedDk] = nextStates;
+        setPickedOrderByCtx((prevHist) => {
+          let changed = false;
+          const nextHist = { ...prevHist };
+          for (const mk of Object.keys(nextStates)) {
+            const ctxKey = `${resolvedDk}__${mk}`;
+            const curState = nextStates[mk] || {};
+            const existingOrder = prevHist[ctxKey] || [];
+            let updatedOrder = existingOrder.filter((sk) => Boolean(curState[sk]));
+            if (updatedOrder.length !== existingOrder.length) changed = true;
+            if (prevForDate) {
+              const oldState = prevForDate[mk] || {};
+              for (const sk of Object.keys(curState)) {
+                if (curState[sk] && !oldState[sk] && updatedOrder[updatedOrder.length - 1] !== sk) {
+                  updatedOrder = [...updatedOrder.filter((x) => x !== sk), sk];
+                  changed = true;
+                }
+              }
+            }
+            if (updatedOrder.length > 0) {
+              nextHist[ctxKey] = updatedOrder.slice(-40);
+            } else if (nextHist[ctxKey]) {
+              delete nextHist[ctxKey];
+              changed = true;
+            }
+          }
+          if (!changed) return prevHist;
+          try {
+            localStorage.setItem(PICK_ORDER_STORAGE_KEY, JSON.stringify(nextHist));
+          } catch {
+            // Ignore storage errors
+          }
+          return nextHist;
+        });
       }
       setStatesByMachine(nextStates);
       if (data.settings) {
@@ -358,8 +421,27 @@ export default function App() {
     return totals;
   }, [dynamicMachines]);
 
-  // Latest selected start time for active machine & viewed date
+  // Start time of the most recently selected slot (ca chụp đã chọn sau cùng)
   const lastPickedStart = useMemo(() => {
+    const ctxKey = `${viewedDateKey}__${activeMachineConfig.key}`;
+    const order = pickedOrderByCtx[ctxKey] || [];
+    const rowByStt = new Map<number, ScheduleRow>();
+    for (const row of activeMachineConfig.rows) {
+      rowByStt.set(row.stt, row);
+    }
+
+    for (let i = order.length - 1; i >= 0; i--) {
+      const sk = order[i];
+      if (!activeSlots[sk]) continue;
+      const m = sk.match(/^(m|a):(\d+)$/);
+      if (!m) continue;
+      const row = rowByStt.get(Number(m[2]));
+      if (!row) continue;
+      const startTime = m[1] === 'm' ? row.morningStart : row.afternoonStart;
+      if (startTime) return startTime;
+    }
+
+    // Fallback when opening a day with pre-existing picks from server/other devices
     let best: string | null = null;
     let bestMin = -1;
     for (const row of activeMachineConfig.rows) {
@@ -379,7 +461,7 @@ export default function App() {
       }
     }
     return best;
-  }, [activeMachineConfig.rows, activeSlots]);
+  }, [activeMachineConfig.key, activeMachineConfig.rows, activeSlots, pickedOrderByCtx, viewedDateKey]);
 
   const lastPickStatus = useMemo(() => {
     if (!lastPickedStart) return { label: 'Chưa có ca chọn', tone: 'empty' as const };
@@ -432,25 +514,52 @@ export default function App() {
     const slotKey = `${session}:${row.stt}`;
     const mk = activeMachine;
     const dk = viewedDateKey;
+    const ctxKey = `${dk}__${mk}`;
+
+    const updatePickOrder = (isChecked: boolean) => {
+      setPickedOrderByCtx((prevHist) => {
+        const list = (prevHist[ctxKey] || []).filter((k) => k !== slotKey);
+        const updated = isChecked ? [...list, slotKey].slice(-40) : list;
+        const nextHist = { ...prevHist };
+        if (updated.length > 0) nextHist[ctxKey] = updated;
+        else delete nextHist[ctxKey];
+        try {
+          localStorage.setItem(PICK_ORDER_STORAGE_KEY, JSON.stringify(nextHist));
+        } catch {
+          // Ignore storage errors
+        }
+        return nextHist;
+      });
+    };
 
     setPendingSlots((p) => ({ ...p, [slotKey]: true }));
     setStatesByMachine((prev) => {
       const nextMachineState = { ...(prev[mk] || {}) };
       if (checked) nextMachineState[slotKey] = true;
       else delete nextMachineState[slotKey];
-      return { ...prev, [mk]: nextMachineState };
+      const nextAll = { ...prev, [mk]: nextMachineState };
+      lastStatesByDateRef.current[dk] = nextAll;
+      return nextAll;
     });
+    updatePickOrder(checked);
 
     try {
       const res = await toggleSlot(mk, dk, slotKey, checked);
-      setStatesByMachine((prev) => ({ ...prev, [mk]: res.state }));
+      setStatesByMachine((prev) => {
+        const nextAll = { ...prev, [mk]: res.state };
+        lastStatesByDateRef.current[dk] = nextAll;
+        return nextAll;
+      });
     } catch (err) {
       setStatesByMachine((prev) => {
         const reverted = { ...(prev[mk] || {}) };
         if (checked) delete reverted[slotKey];
         else reverted[slotKey] = true;
-        return { ...prev, [mk]: reverted };
+        const nextAll = { ...prev, [mk]: reverted };
+        lastStatesByDateRef.current[dk] = nextAll;
+        return nextAll;
       });
+      updatePickOrder(!checked);
       pushToast(
         'error',
         err instanceof Error ? err.message : 'Lỗi lưu dữ liệu lên máy chủ. Đã khôi phục trạng thái.'
@@ -557,7 +666,21 @@ export default function App() {
           password,
           token: presetToken,
         });
-        setStatesByMachine((prev) => ({ ...prev, [activeMachineConfig.key]: {} }));
+        setStatesByMachine((prev) => {
+          const nextAll = { ...prev, [activeMachineConfig.key]: {} };
+          lastStatesByDateRef.current[viewedDateKey] = nextAll;
+          return nextAll;
+        });
+        setPickedOrderByCtx((prevHist) => {
+          const nextHist = { ...prevHist };
+          delete nextHist[`${viewedDateKey}__${activeMachineConfig.key}`];
+          try {
+            localStorage.setItem(PICK_ORDER_STORAGE_KEY, JSON.stringify(nextHist));
+          } catch {
+            // Ignore
+          }
+          return nextHist;
+        });
         setAuthModalMode(null);
         pushToast(
           'success',
@@ -609,7 +732,21 @@ export default function App() {
     setResettingMachineKey(mk);
     try {
       await resetMachineDay(mk, viewedDateKey, { token: settingsToken });
-      setStatesByMachine((prev) => ({ ...prev, [mk]: {} }));
+      setStatesByMachine((prev) => {
+        const nextAll = { ...prev, [mk]: {} };
+        lastStatesByDateRef.current[viewedDateKey] = nextAll;
+        return nextAll;
+      });
+      setPickedOrderByCtx((prevHist) => {
+        const nextHist = { ...prevHist };
+        delete nextHist[`${viewedDateKey}__${mk}`];
+        try {
+          localStorage.setItem(PICK_ORDER_STORAGE_KEY, JSON.stringify(nextHist));
+        } catch {
+          // Ignore
+        }
+        return nextHist;
+      });
       const name = dynamicMachineMap[mk]?.name || mk;
       pushToast(
         'success',
@@ -1501,6 +1638,14 @@ export default function App() {
           setChangePwdError(null);
           setChangePwdModalOpen(true);
         }}
+      />
+
+      <MultitaskingClockPip
+        machineName={activeMachineConfig.name}
+        lastPickedStart={lastPickedStart}
+        lastPickTone={lastPickStatus.tone}
+        isToday={isToday}
+        onNotify={pushToast}
       />
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

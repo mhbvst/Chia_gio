@@ -17,7 +17,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismis
 
   return (
     <div
-      className="no-print fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)]"
+      className="no-print fixed bottom-20 right-4 z-50 flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)]"
       role="status"
       aria-live="polite"
     >

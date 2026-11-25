@@ -261,13 +261,13 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <div
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-[#EEF4FB] dark:bg-slate-800 whitespace-nowrap shrink-0"
-            title="Thời gian bắt đầu đã chọn gần nhất / Đồng hồ thời gian thực (Giờ Việt Nam)"
-            aria-label="Thời gian bắt đầu đã chọn gần nhất và đồng hồ thời gian thực"
+            title="Giờ bắt đầu của ca chụp đã chọn sau cùng / Đồng hồ thời gian thực (Giờ Việt Nam)"
+            aria-label="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực"
           >
             <Clock3 className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400 shrink-0" />
             <div className="leading-tight">
               <div className="text-[10px] font-bold uppercase tracking-wide text-[#334155] dark:text-slate-400">
-                Bắt đầu gần nhất / Hiện tại
+                Đã chọn sau cùng / Hiện tại
               </div>
               <div className="font-mono text-xs sm:text-sm font-extrabold tabular-nums flex items-center gap-1.5">
                 <span className={lastPickColorClass}>
