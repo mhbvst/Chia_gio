@@ -339,6 +339,28 @@ function isConfiguredMachineKey(mk: string, settings: ScheduleSettings): boolean
 async function startServer() {
   const app = express();
   app.set('trust proxy', 1);
+
+  const extraOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  const allowedOrigins = new Set(['https://mhbvst.github.io', ...extraOrigins]);
+
+  app.use((req, res, next) => {
+    const origin = typeof req.headers.origin === 'string' ? req.headers.origin.replace(/\/+$/, '') : '';
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    }
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '64kb' }));
 
   app.get('/healthz', (_req, res) => {
