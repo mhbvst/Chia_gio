@@ -3,7 +3,6 @@ import dotenv from 'dotenv';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import {
   analyzeScheduleSettings,
   DEFAULT_SCHEDULE_SETTINGS,
@@ -14,7 +13,7 @@ import {
 
 dotenv.config();
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const TZ = 'Asia/Ho_Chi_Minh';
 const SLOT_KEY_RE = /^(m|a):([1-9]\d{0,2})$/;
 const ADMIN_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
@@ -22,7 +21,7 @@ const TOKEN_SECRET =
   (process.env.SESSION_SECRET || '').trim() || crypto.randomBytes(32).toString('hex');
 let tokenValidAfterMs = 0;
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), 'data'));
 const STORE_PATH = path.join(DATA_DIR, 'schedule-store.json');
 const SETTINGS_PATH = path.join(DATA_DIR, 'schedule-settings.json');
 const AUTH_PATH = path.join(DATA_DIR, 'auth-config.json');
@@ -339,7 +338,12 @@ function isConfiguredMachineKey(mk: string, settings: ScheduleSettings): boolean
 
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '64kb' }));
+
+  app.get('/healthz', (_req, res) => {
+    res.json({ ok: true });
+  });
 
   // GET /api/today
   app.get('/api/today', (_req, res) => {
@@ -747,6 +751,7 @@ async function startServer() {
   });
 
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -761,7 +766,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Hospital Pro X-Ray Scheduler listening on http://localhost:${PORT}`);
+    console.log(`Hospital Pro X-Ray Scheduler listening on port ${PORT}`);
   });
 }
 
