@@ -55,7 +55,7 @@ interface ScheduleTableProps {
   floatingClockOpen?: boolean;
   pendingSlots: Record<string, boolean>;
   onSlotClick: (row: ScheduleRow, session: 'm' | 'a', nextChecked: boolean) => void;
-  onChangeDisplaySettings: (next: TableDisplaySettings) => void;
+  onChangeDisplaySettings: (next: React.SetStateAction<TableDisplaySettings>) => void;
   onSwitchMobileSegment?: (seg: 'morning' | 'afternoon') => void;
   onToggleFloatingClock?: () => void;
   onRequestQuickPick?: () => void;
@@ -497,7 +497,7 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
       {/* Table toolbar header */}
       <div className="no-print relative z-30 rounded-t-xl flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 px-4 sm:px-5 py-3 border-b border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900">
         {/* Left: Machine identity + single-line action controls */}
-        <div className="min-w-0 space-y-2">
+        <div className={`min-w-0 space-y-2 ${floatingClockOpen ? 'w-full' : ''}`}>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#334155] dark:text-slate-400">
               <span className="font-bold text-[#0D4EA6] dark:text-sky-400">Chẩn đoán hình ảnh</span>
@@ -583,7 +583,7 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
                         Cài đặt hiển thị
                       </div>
                       <div className="text-[11px] font-medium text-[#475569] dark:text-slate-400">
-                        Áp dụng trực tiếp lên bảng lịch chụp
+                        Tự động lưu theo trình duyệt này
                       </div>
                     </div>
                     {isCustomDisplay && (
@@ -622,10 +622,10 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
                             key={opt.id}
                             type="button"
                             onClick={() =>
-                              onChangeDisplaySettings({
-                                ...displaySettings,
+                              onChangeDisplaySettings((prev) => ({
+                                ...prev,
                                 rowSpacing: opt.id,
-                              })
+                              }))
                             }
                             aria-pressed={active}
                             className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
@@ -655,10 +655,10 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
                       <button
                         type="button"
                         onClick={() =>
-                          onChangeDisplaySettings({
-                            ...displaySettings,
-                            fontSize: Math.max(12, clampedFontSize - 1),
-                          })
+                          onChangeDisplaySettings((prev) => ({
+                            ...prev,
+                            fontSize: Math.max(12, Math.round(prev.fontSize || 14) - 1),
+                          }))
                         }
                         disabled={clampedFontSize <= 12}
                         aria-label="Giảm kích thước chữ"
@@ -672,22 +672,23 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
                         max={22}
                         step={1}
                         value={clampedFontSize}
-                        onChange={(e) =>
-                          onChangeDisplaySettings({
-                            ...displaySettings,
-                            fontSize: Number(e.target.value),
-                          })
-                        }
+                        onChange={(e) => {
+                          const nextSize = Number(e.target.value);
+                          onChangeDisplaySettings((prev) => ({
+                            ...prev,
+                            fontSize: nextSize,
+                          }));
+                        }}
                         aria-label="Thanh trượt kích thước chữ"
                         className="flex-1 accent-[#0D4EA6] dark:accent-sky-400 cursor-pointer"
                       />
                       <button
                         type="button"
                         onClick={() =>
-                          onChangeDisplaySettings({
-                            ...displaySettings,
-                            fontSize: Math.min(22, clampedFontSize + 1),
-                          })
+                          onChangeDisplaySettings((prev) => ({
+                            ...prev,
+                            fontSize: Math.min(22, Math.round(prev.fontSize || 14) + 1),
+                          }))
                         }
                         disabled={clampedFontSize >= 22}
                         aria-label="Tăng kích thước chữ"
@@ -723,10 +724,10 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
                             key={opt.val}
                             type="button"
                             onClick={() =>
-                              onChangeDisplaySettings({
-                                ...displaySettings,
+                              onChangeDisplaySettings((prev) => ({
+                                ...prev,
                                 fontWeight: opt.val,
-                              })
+                              }))
                             }
                             aria-pressed={active}
                             style={{ fontWeight: opt.val }}
@@ -745,11 +746,27 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
                 </div>
               )}
             </div>
+
+            {floatingClockOpen && onToggleFloatingClock && (
+              <button
+                type="button"
+                onClick={onToggleFloatingClock}
+                aria-pressed={true}
+                title="Đóng cửa sổ đồng hồ nổi và hiện lại đồng hồ gốc (Phím H)"
+                className="md:ml-auto inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <PictureInPicture2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>Đóng đồng hồ nổi · Hiện đồng hồ</span>
+                <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-extrabold leading-none rounded border border-emerald-300 dark:border-emerald-700 bg-white/85 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                  H
+                </kbd>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Right: Balanced clinical dual-time console (hidden when floating clock is open) */}
-        {!floatingClockOpen ? (
+        {!floatingClockOpen && (
           <div
             className="xl:ml-auto shrink-0 rounded-lg border border-[#C7D6E8] dark:border-slate-700/80 bg-white dark:bg-[#0B1220] shadow-[0_2px_8px_rgba(8,53,120,0.08)] dark:shadow-[0_4px_16px_rgba(2,6,23,0.4)] overflow-hidden"
             title="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực (Giờ Việt Nam)"
@@ -799,22 +816,6 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
               </div>
             </div>
           </div>
-        ) : (
-          onToggleFloatingClock && (
-            <button
-              type="button"
-              onClick={onToggleFloatingClock}
-              aria-pressed={true}
-              title="Đóng cửa sổ đồng hồ nổi và hiện lại đồng hồ gốc (Phím H)"
-              className="xl:ml-auto self-start xl:self-center shrink-0 inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <PictureInPicture2 className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>Đóng đồng hồ nổi · Hiện đồng hồ</span>
-              <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-extrabold leading-none rounded border border-emerald-300 dark:border-emerald-700 bg-white/85 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
-                H
-              </kbd>
-            </button>
-          )
         )}
       </div>
 
@@ -822,8 +823,10 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
       <div
         ref={tableScrollRef}
         className={`print-table-wrap dual-scroll ${
-          floatingClockOpen ? 'h-[calc(100dvh-184px)]' : 'h-[calc(100dvh-220px)]'
-        } ${rows.length === 0 || loading ? 'rounded-b-xl' : ''} min-h-[360px] max-h-[820px] overflow-y-auto overflow-x-auto bg-white dark:bg-slate-900`}
+          floatingClockOpen
+            ? 'h-[calc(100dvh-216px)] md:h-[calc(100dvh-178px)]'
+            : 'h-[calc(100dvh-196px)] xl:h-[calc(100dvh-208px)]'
+        } ${rows.length === 0 || loading ? 'rounded-b-xl' : ''} min-h-[360px] max-h-[1200px] overflow-y-auto overflow-x-auto bg-white dark:bg-slate-900`}
       >
         {loading ? (
           <div className="p-4 space-y-2" aria-busy="true" aria-label="Đang tải dữ liệu lịch chụp">

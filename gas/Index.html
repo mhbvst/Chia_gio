@@ -504,7 +504,7 @@
     @media (max-width: 1180px) { .sup-badge { display: none; } }
 
     /* Main Content Container */
-    .main-content { flex: 1; padding: 14px 24px 24px; }
+    .main-content { flex: 1; padding: 14px 24px 16px; }
     .content-wrap { max-width: 1360px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
     @media (max-width: 767px) { .hero-progress-card { display: none; } }
     @media (max-width: 640px) {
@@ -940,11 +940,15 @@
     body.theme-dark .toolbar-time-pick.past { color: #FACC15; }
     body.theme-dark .toolbar-time-pick.overdue { color: #F87171; }
     body.theme-dark .toolbar-time-now { color: #38BDF8; }
-    @media (max-width: 900px) {
+    @media (max-width: 1024px) {
       .toolbar-time-box { margin-left: 0; width: 100%; }
       .toolbar-time-head { padding: 8px 14px; }
       .toolbar-time-seg, .toolbar-time-seg + .toolbar-time-seg { min-width: 0; padding: 10px 14px; }
       .toolbar-time-pick, .toolbar-time-now { font-size: 28px; }
+    }
+    .table-card.floating-clock-open .table-toolbar-left,
+    .table-card.floating-clock-open .action-group {
+      width: 100%;
     }
     .toolbar-restore-btn {
       display: none;
@@ -966,7 +970,7 @@
       transition: background 140ms ease;
     }
     .toolbar-restore-btn:hover { background: #D1FAE5; }
-    @media (max-width: 900px) {
+    @media (max-width: 767px) {
       .toolbar-restore-btn { margin-left: 0; }
     }
     .kbd-hint {
@@ -991,10 +995,10 @@
     @media (max-width: 639px) { .kbd-hint { display: none; } }
 
     .table-scroll {
-      height: calc(100vh - 220px);
-      height: calc(100dvh - 220px);
+      height: calc(100vh - 210px);
+      height: calc(100dvh - 210px);
       min-height: 360px;
-      max-height: 820px;
+      max-height: 1200px;
       overflow-y: auto;
       overflow-x: auto;
       scrollbar-width: thin;
@@ -1002,8 +1006,24 @@
       scrollbar-gutter: stable;
     }
     .table-card.floating-clock-open .table-scroll {
-      height: calc(100vh - 184px);
-      height: calc(100dvh - 184px);
+      height: calc(100vh - 180px);
+      height: calc(100dvh - 180px);
+    }
+    @media (max-width: 1024px) {
+      .table-scroll {
+        height: calc(100vh - 198px);
+        height: calc(100dvh - 198px);
+      }
+      .table-card.floating-clock-open .table-scroll {
+        height: calc(100vh - 180px);
+        height: calc(100dvh - 180px);
+      }
+    }
+    @media (max-width: 767px) {
+      .table-card.floating-clock-open .table-scroll {
+        height: calc(100vh - 218px);
+        height: calc(100dvh - 218px);
+      }
     }
     table.xq {
       width: 100%;
@@ -1906,7 +1926,7 @@
                       <div class="display-head">
                         <div>
                           <div class="display-title">Cài đặt hiển thị</div>
-                          <div class="display-sub">Áp dụng trực tiếp lên bảng lịch chụp</div>
+                          <div class="display-sub">Tự động lưu theo trình duyệt này</div>
                         </div>
                         <button id="btnDisplayReset" class="display-reset-btn" type="button" style="display:none;">↺ Mặc định</button>
                       </div>
@@ -1946,6 +1966,11 @@
                       </div>
                     </div>
                   </div>
+                  <button id="btnRestoreClock" class="toolbar-restore-btn" type="button" aria-pressed="true" title="Đóng cửa sổ đồng hồ nổi và hiện lại đồng hồ gốc (Phím H)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"></path><rect x="12" y="13" width="10" height="7" rx="2"></rect></svg>
+                    <span>Đóng đồng hồ nổi · Hiện đồng hồ</span>
+                    <kbd class="kbd-hint" style="border-color:#86EFAC;color:#047857;">H</kbd>
+                  </button>
                 </div>
               </div>
 
@@ -1974,12 +1999,6 @@
                   </div>
                 </div>
               </div>
-
-              <button id="btnRestoreClock" class="toolbar-restore-btn" type="button" aria-pressed="true" title="Đóng cửa sổ đồng hồ nổi và hiện lại đồng hồ gốc (Phím H)">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"></path><rect x="12" y="13" width="10" height="7" rx="2"></rect></svg>
-                <span>Đóng đồng hồ nổi · Hiện đồng hồ</span>
-                <kbd class="kbd-hint" style="border-color:#86EFAC;color:#047857;">H</kbd>
-              </button>
             </div>
 
             <div id="tableScroll" class="table-scroll">
@@ -2719,9 +2738,38 @@
         return (parts[parts.length - 2].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
       }
 
+      function readCookieVal(name) {
+        try {
+          var prefix = encodeURIComponent(name) + "=";
+          var parts = document.cookie ? document.cookie.split("; ") : [];
+          for (var i = 0; i < parts.length; i++) {
+            if (parts[i].indexOf(prefix) === 0) {
+              return decodeURIComponent(parts[i].slice(prefix.length));
+            }
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      function writeCookieVal(name, value) {
+        try {
+          var sec = window.location && window.location.protocol === "https:" ? "; Secure" : "";
+          document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + "; max-age=31536000; path=/; SameSite=Lax" + sec;
+        } catch (e) {}
+      }
+
       var storage = {
-        get: function (k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
-        set: function (k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+        get: function (k) {
+          try {
+            var v = window.localStorage.getItem(k);
+            if (v !== null) return v;
+          } catch (e) {}
+          return readCookieVal(k);
+        },
+        set: function (k, v) {
+          try { window.localStorage.setItem(k, v); } catch (e) {}
+          if (k === DISPLAY_SETTINGS_KEY) writeCookieVal(k, v);
+        }
       };
 
       function formatMinutesHHMM(totalMinutes) {
@@ -3474,6 +3522,22 @@
         } catch (e) {}
         applyPreferences();
       }
+
+      window.addEventListener("storage", function (ev) {
+        if (!ev || ev.key !== DISPLAY_SETTINGS_KEY || !ev.newValue) return;
+        try {
+          var pDisp = JSON.parse(ev.newValue);
+          if (pDisp && typeof pDisp === "object") {
+            var rs = (pDisp.rowSpacing === "standard" || pDisp.rowSpacing === "spacious") ? pDisp.rowSpacing : "compact";
+            var fsN = Number(pDisp.fontSize);
+            var fs = (isFinite(fsN) && fsN >= 12 && fsN <= 22) ? Math.round(fsN) : 14;
+            var fwN = Number(pDisp.fontWeight);
+            var fw = (fwN === 400 || fwN === 500 || fwN === 600 || fwN === 700 || fwN === 800) ? fwN : 700;
+            displaySettings = { rowSpacing: rs, fontSize: fs, fontWeight: fw };
+            applyPreferences();
+          }
+        } catch (e) {}
+      });
 
       function applyPreferences() {
         density = displaySettings.rowSpacing;

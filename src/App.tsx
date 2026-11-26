@@ -114,6 +114,97 @@ function shiftDateKey(dateKey: string, deltaDays: number): string {
   return `${y}-${mo}-${da}`;
 }
 
+function normalizeDisplaySettings(
+  raw: Partial<TableDisplaySettings> | null | undefined
+): TableDisplaySettings {
+  const rs: TableRowSpacing =
+    raw?.rowSpacing === 'standard' || raw?.rowSpacing === 'spacious'
+      ? raw.rowSpacing
+      : 'compact';
+  const fsNum = Number(raw?.fontSize);
+  const fontSize = Number.isFinite(fsNum)
+    ? Math.min(22, Math.max(12, Math.round(fsNum)))
+    : DEFAULT_TABLE_DISPLAY_SETTINGS.fontSize;
+  const fwNum = Number(raw?.fontWeight);
+  const fontWeight: TableFontWeight =
+    fwNum === 400 || fwNum === 500 || fwNum === 600 || fwNum === 700 || fwNum === 800
+      ? fwNum
+      : DEFAULT_TABLE_DISPLAY_SETTINGS.fontWeight;
+  return { rowSpacing: rs, fontSize, fontWeight };
+}
+
+function readCookieValue(name: string): string | null {
+  try {
+    const prefix = `${encodeURIComponent(name)}=`;
+    const parts = document.cookie ? document.cookie.split('; ') : [];
+    for (const part of parts) {
+      if (part.startsWith(prefix)) {
+        return decodeURIComponent(part.slice(prefix.length));
+      }
+    }
+  } catch {
+    // Ignore cookie errors
+  }
+  return null;
+}
+
+function writeCookieValue(name: string, value: string): void {
+  try {
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; max-age=31536000; path=/; SameSite=Lax${secure}`;
+  } catch {
+    // Ignore cookie errors
+  }
+}
+
+function loadPersistedDisplaySettings(): TableDisplaySettings {
+  const candidates: (string | null)[] = [];
+  try {
+    candidates.push(localStorage.getItem(DISPLAY_SETTINGS_STORAGE_KEY));
+  } catch {
+    // Ignore storage errors
+  }
+  candidates.push(readCookieValue(DISPLAY_SETTINGS_STORAGE_KEY));
+
+  for (const raw of candidates) {
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as Partial<TableDisplaySettings>;
+      if (parsed && typeof parsed === 'object') {
+        return normalizeDisplaySettings(parsed);
+      }
+    } catch {
+      // Ignore malformed JSON
+    }
+  }
+
+  let legacyDensity: string | null = null;
+  try {
+    legacyDensity = localStorage.getItem(DENSITY_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+  if (!legacyDensity) legacyDensity = readCookieValue(DENSITY_STORAGE_KEY);
+  const rowSpacing: TableRowSpacing =
+    legacyDensity === 'standard' || legacyDensity === 'spacious' ? legacyDensity : 'compact';
+  return {
+    ...DEFAULT_TABLE_DISPLAY_SETTINGS,
+    rowSpacing,
+    fontSize: rowSpacing === 'standard' ? 15 : DEFAULT_TABLE_DISPLAY_SETTINGS.fontSize,
+  };
+}
+
+function persistDisplaySettings(settings: TableDisplaySettings): void {
+  const serialized = JSON.stringify(settings);
+  try {
+    localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, serialized);
+    localStorage.setItem(DENSITY_STORAGE_KEY, settings.rowSpacing);
+  } catch {
+    // Ignore storage errors
+  }
+  writeCookieValue(DISPLAY_SETTINGS_STORAGE_KEY, serialized);
+}
+
 export default function App() {
   // ===== Device machine lock =====
   const [lockedMachine, setLockedMachine] = useState<MachineKey | null>(() => {
@@ -167,38 +258,9 @@ export default function App() {
   const [pendingSlots, setPendingSlots] = useState<Record<string, boolean>>({});
 
   // ===== UI preferences =====
-  const [displaySettings, setDisplaySettings] = useState<TableDisplaySettings>(() => {
-    try {
-      const raw = localStorage.getItem(DISPLAY_SETTINGS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<TableDisplaySettings>;
-        const rs: TableRowSpacing =
-          parsed.rowSpacing === 'standard' || parsed.rowSpacing === 'spacious'
-            ? parsed.rowSpacing
-            : 'compact';
-        const fsNum = Number(parsed.fontSize);
-        const fontSize = Number.isFinite(fsNum)
-          ? Math.min(22, Math.max(12, Math.round(fsNum)))
-          : DEFAULT_TABLE_DISPLAY_SETTINGS.fontSize;
-        const fwNum = Number(parsed.fontWeight);
-        const fontWeight: TableFontWeight =
-          fwNum === 400 || fwNum === 500 || fwNum === 600 || fwNum === 700 || fwNum === 800
-            ? fwNum
-            : DEFAULT_TABLE_DISPLAY_SETTINGS.fontWeight;
-        return { rowSpacing: rs, fontSize, fontWeight };
-      }
-    } catch {
-      // Ignore storage errors
-    }
-    const legacyDensity = localStorage.getItem(DENSITY_STORAGE_KEY);
-    const rowSpacing: TableRowSpacing =
-      legacyDensity === 'standard' || legacyDensity === 'spacious' ? legacyDensity : 'compact';
-    return {
-      ...DEFAULT_TABLE_DISPLAY_SETTINGS,
-      rowSpacing,
-      fontSize: rowSpacing === 'standard' ? 15 : DEFAULT_TABLE_DISPLAY_SETTINGS.fontSize,
-    };
-  });
+  const [displaySettings, setDisplaySettings] = useState<TableDisplaySettings>(
+    loadPersistedDisplaySettings
+  );
   const [mobileSegment, setMobileSegment] = useState<'morning' | 'afternoon'>(() =>
     localStorage.getItem(MOBILE_SEG_STORAGE_KEY) === 'afternoon' ? 'afternoon' : 'morning'
   );
@@ -869,30 +931,38 @@ export default function App() {
     void loadDateStates(target, false);
   };
 
-  const handleChangeDisplaySettings = useCallback((next: TableDisplaySettings) => {
-    const normalized: TableDisplaySettings = {
-      rowSpacing:
-        next.rowSpacing === 'standard' || next.rowSpacing === 'spacious'
-          ? next.rowSpacing
-          : 'compact',
-      fontSize: Math.min(22, Math.max(12, Math.round(next.fontSize || 14))),
-      fontWeight:
-        next.fontWeight === 400 ||
-        next.fontWeight === 500 ||
-        next.fontWeight === 600 ||
-        next.fontWeight === 700 ||
-        next.fontWeight === 800
-          ? next.fontWeight
-          : 700,
+  useEffect(() => {
+    persistDisplaySettings(displaySettings);
+  }, [displaySettings]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== DISPLAY_SETTINGS_STORAGE_KEY || !e.newValue) return;
+      try {
+        const parsed = JSON.parse(e.newValue) as Partial<TableDisplaySettings>;
+        if (parsed && typeof parsed === 'object') {
+          setDisplaySettings(normalizeDisplaySettings(parsed));
+        }
+      } catch {
+        // Ignore malformed cross-tab value
+      }
     };
-    setDisplaySettings(normalized);
-    try {
-      localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
-      localStorage.setItem(DENSITY_STORAGE_KEY, normalized.rowSpacing);
-    } catch {
-      // Ignore storage errors
-    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  const handleChangeDisplaySettings = useCallback(
+    (nextOrUpdater: React.SetStateAction<TableDisplaySettings>) => {
+      setDisplaySettings((prev) => {
+        const rawNext =
+          typeof nextOrUpdater === 'function' ? nextOrUpdater(prev) : nextOrUpdater;
+        const normalized = normalizeDisplaySettings(rawNext);
+        persistDisplaySettings(normalized);
+        return normalized;
+      });
+    },
+    []
+  );
 
   const handleStepDate = (deltaDays: number) => {
     const base = dateInput || viewedDateKey || todayKey || getTodayKeyVN();
