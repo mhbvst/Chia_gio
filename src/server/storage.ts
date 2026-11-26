@@ -231,50 +231,79 @@ export function getStorageMode(): 'postgres' | 'json' {
   return pgPool ? 'postgres' : 'json';
 }
 
+export async function closeStorage(): Promise<void> {
+  if (pgPool) {
+    const pool = pgPool;
+    pgPool = null;
+    await pool.end().catch(() => {});
+  }
+}
+
 export async function initStorage(): Promise<'postgres' | 'json'> {
   const dbUrl = (process.env.DATABASE_URL || '').trim();
   if (!dbUrl) {
     ensureDataDir();
+    console.warn(
+      'WARNING: DATABASE_URL is not configured. Using local JSON fallback; data on ephemeral filesystems may be reset on redeploy.'
+    );
     return 'json';
   }
 
-  const pool = new Pool({
-    connectionString: dbUrl,
-    max: 15,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 15_000,
-    statement_timeout: 10_000,
-    keepAlive: true,
-    ssl: resolvePgSslConfig(dbUrl),
-  });
+  const maxAttempts = 4;
+  let lastErr: unknown = null;
 
-  pool.on('error', (err) => {
-    console.error('PostgreSQL pool error:', err.message);
-  });
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const pool = new Pool({
+      connectionString: dbUrl,
+      max: 15,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 15_000,
+      statement_timeout: 10_000,
+      keepAlive: true,
+      ssl: resolvePgSslConfig(dbUrl),
+    });
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS schedule_states (
-      machine_key TEXT NOT NULL,
-      date_key TEXT NOT NULL,
-      slots JSONB NOT NULL DEFAULT '{}'::jsonb,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      PRIMARY KEY (machine_key, date_key)
-    );
-    CREATE TABLE IF NOT EXISTS app_settings (
-      id TEXT PRIMARY KEY,
-      settings JSONB NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS auth_config (
-      id TEXT PRIMARY KEY,
-      salt TEXT NOT NULL,
-      hash TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+    pool.on('error', (err) => {
+      console.error('PostgreSQL pool error:', err.message);
+    });
 
-  pgPool = pool;
-  return 'postgres';
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS schedule_states (
+          machine_key TEXT NOT NULL,
+          date_key TEXT NOT NULL,
+          slots JSONB NOT NULL DEFAULT '{}'::jsonb,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (machine_key, date_key)
+        );
+        CREATE TABLE IF NOT EXISTS app_settings (
+          id TEXT PRIMARY KEY,
+          settings JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS auth_config (
+          id TEXT PRIMARY KEY,
+          salt TEXT NOT NULL,
+          hash TEXT NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `);
+      pgPool = pool;
+      return 'postgres';
+    } catch (err) {
+      lastErr = err;
+      await pool.end().catch(() => {});
+      if (attempt < maxAttempts) {
+        const waitMs = attempt * 2_000;
+        console.warn(
+          `PostgreSQL init attempt ${attempt}/${maxAttempts} failed (${err instanceof Error ? err.message : err}). Retrying in ${waitMs}ms...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    }
+  }
+
+  throw lastErr instanceof Error ? lastErr : new Error('Failed to initialize PostgreSQL storage.');
 }
 
 function getEnvAuthConfig(): AuthConfig | null {

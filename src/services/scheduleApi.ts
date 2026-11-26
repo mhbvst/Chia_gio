@@ -25,14 +25,19 @@ export interface AuthStatusResponse {
 }
 
 const RAW_API_BASE = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+const RESOLVED_API_BASE =
+  RAW_API_BASE ||
+  (typeof window !== 'undefined' && window.location.hostname === 'mhbvst.github.io'
+    ? 'https://hospital-pro-xray-scheduler.onrender.com'
+    : '');
 
 function isGithubPagesStaticHost(): boolean {
   if (typeof window === 'undefined') return false;
-  return !RAW_API_BASE && window.location.hostname.endsWith('.github.io');
+  return !RESOLVED_API_BASE && window.location.hostname.endsWith('.github.io');
 }
 
 function apiUrl(path: string): string {
-  return `${RAW_API_BASE}${path}`;
+  return `${RESOLVED_API_BASE}${path}`;
 }
 
 let useLocalFallback = isGithubPagesStaticHost();
@@ -65,10 +70,10 @@ async function withBackendOrStatic<T>(
   try {
     return await remoteFn();
   } catch (err) {
-    // If deployed to static hosting without /api backend (404/405 HTML or network error when no remote API base is set)
+    // If deployed to static hosting without /api backend (404/405 HTML or invalid JSON when no remote API base is set)
     const status = (err as { status?: number })?.status;
     const isMissingStaticApi =
-      !RAW_API_BASE && (status === 404 || status === 405 || err instanceof SyntaxError);
+      !RESOLVED_API_BASE && (status === 404 || status === 405 || err instanceof SyntaxError);
     if (isMissingStaticApi) {
       useLocalFallback = true;
       return localFn();
@@ -77,9 +82,34 @@ async function withBackendOrStatic<T>(
   }
 }
 
+async function fetchJsonWithRetry<T>(path: string): Promise<T & { ok?: boolean; message?: string; code?: string }> {
+  const url = apiUrl(path);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if ((res.status === 502 || res.status === 503 || res.status === 504) && attempt === 0) {
+        await new Promise((r) => setTimeout(r, 2500));
+        continue;
+      }
+      return await parseJson<T>(res);
+    } catch (err) {
+      lastErr = err;
+      const status = (err as { status?: number })?.status;
+      const isTransientNet = err instanceof TypeError;
+      if (attempt === 0 && (isTransientNet || status === 502 || status === 503 || status === 504)) {
+        await new Promise((r) => setTimeout(r, 2500));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 export async function fetchToday(): Promise<{ today: string; timezone: string }> {
   return withBackendOrStatic(
-    async () => parseJson(await fetch(apiUrl('/api/today'), { cache: 'no-store' })),
+    async () => fetchJsonWithRetry('/api/today'),
     () => localStoreAdapter.fetchToday()
   );
 }
@@ -87,7 +117,7 @@ export async function fetchToday(): Promise<{ today: string; timezone: string }>
 export async function fetchStatesForDate(dateKey?: string): Promise<StatesResponse> {
   const q = dateKey ? `?dateKey=${encodeURIComponent(dateKey)}` : '';
   return withBackendOrStatic(
-    async () => parseJson(await fetch(apiUrl(`/api/states${q}`), { cache: 'no-store' })),
+    async () => fetchJsonWithRetry(`/api/states${q}`),
     () => localStoreAdapter.fetchStatesForDate(dateKey)
   );
 }
@@ -144,7 +174,7 @@ export async function resetMachineDay(
 
 export async function fetchAuthStatus(): Promise<AuthStatusResponse> {
   return withBackendOrStatic(
-    async () => parseJson(await fetch(apiUrl('/api/auth/status'), { cache: 'no-store' })),
+    async () => fetchJsonWithRetry('/api/auth/status'),
     () => localStoreAdapter.fetchAuthStatus()
   );
 }
@@ -204,7 +234,7 @@ export async function fetchScheduleSettings(): Promise<{
   updatedAt: string | null;
 }> {
   return withBackendOrStatic(
-    async () => parseJson(await fetch(apiUrl('/api/settings'), { cache: 'no-store' })),
+    async () => fetchJsonWithRetry('/api/settings'),
     () => localStoreAdapter.fetchScheduleSettings()
   );
 }

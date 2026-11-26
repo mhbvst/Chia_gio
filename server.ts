@@ -11,6 +11,7 @@ import {
 import {
   changeStoredAuthPassword,
   claimInitialAuthConfig,
+  closeStorage,
   deleteStateForDay,
   getStorageMode,
   initStorage,
@@ -644,9 +645,27 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Hospital Pro X-Ray Scheduler listening on port ${PORT}`);
   });
+
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`Received ${signal}, shutting down gracefully...`);
+    server.close(async () => {
+      await closeStorage();
+      process.exit(0);
+    });
+    setTimeout(async () => {
+      await closeStorage();
+      process.exit(0);
+    }, 8_000).unref();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 startServer().catch((err) => {
