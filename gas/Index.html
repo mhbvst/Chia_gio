@@ -859,41 +859,89 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .toolbar-time-seg {
-      padding: 10px 18px;
+      padding: 10px 16px;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      min-width: 152px;
+      min-width: 214px;
       background: #FFFFFF;
     }
     .toolbar-time-seg + .toolbar-time-seg {
       border-left: 1px solid #C7D6E8;
-      background: #F2F7FF;
-      min-width: 184px;
+      background: #F4F8FF;
+      min-width: 228px;
+    }
+    .toolbar-time-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      line-height: 1.2;
     }
     .toolbar-time-lbl {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 11.5px;
+      font-size: 11px;
       font-weight: 600;
       color: #475569;
       white-space: nowrap;
     }
     .toolbar-time-lbl.now-lbl { color: #0D4EA6; }
+    .toolbar-time-status {
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      color: #475569;
+    }
+    .toolbar-time-status.empty { color: #64748B; }
+    .toolbar-time-status.upcoming { color: #15803D; }
+    .toolbar-time-status.soon,
+    .toolbar-time-status.now,
+    .toolbar-time-status.past { color: #B45309; }
+    .toolbar-time-status.overdue { color: #B91C1C; }
+    .toolbar-time-val-row {
+      margin-top: 6px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
     .toolbar-time-pick,
     .toolbar-time-now {
-      margin-top: 4px;
       font-family: var(--font-mono);
-      font-size: 32px;
+      font-size: 30px;
       line-height: 1;
       font-weight: 800;
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.02em;
     }
+    .toolbar-time-delta {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      color: #334155;
+    }
+    .toolbar-time-delta.empty { color: #64748B; }
+    .toolbar-time-delta.upcoming { color: #15803D; }
+    .toolbar-time-delta.soon,
+    .toolbar-time-delta.now,
+    .toolbar-time-delta.past { color: #B45309; }
+    .toolbar-time-delta.overdue { color: #B91C1C; }
+    .toolbar-time-date {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #334155;
+      white-space: nowrap;
+    }
     @media (min-width: 1280px) {
       .toolbar-time-pick,
-      .toolbar-time-now { font-size: 38px; }
+      .toolbar-time-now { font-size: 34px; }
     }
     .toolbar-time-pick { color: #0F172A; }
     .toolbar-time-pick.empty { color: #94A3B8; }
@@ -912,7 +960,7 @@
       border-bottom-color: rgba(148, 163, 184, 0.16);
       background: #111A2E;
     }
-    body.theme-dark .toolbar-time-title { color: #CBD5E1; }
+    body.theme-dark .toolbar-time-title { color: #E2E8F0; }
     body.theme-dark .toolbar-time-title svg { stroke: #38BDF8; }
     body.theme-dark .toolbar-pip-btn {
       border-color: rgba(56, 189, 248, 0.35);
@@ -932,6 +980,21 @@
     }
     body.theme-dark .toolbar-time-lbl { color: #94A3B8; }
     body.theme-dark .toolbar-time-lbl.now-lbl { color: rgba(125, 211, 252, 0.9); }
+    body.theme-dark .toolbar-time-status { color: #94A3B8; }
+    body.theme-dark .toolbar-time-status.empty { color: #64748B; }
+    body.theme-dark .toolbar-time-status.upcoming { color: #4ADE80; }
+    body.theme-dark .toolbar-time-status.soon,
+    body.theme-dark .toolbar-time-status.now,
+    body.theme-dark .toolbar-time-status.past { color: #FACC15; }
+    body.theme-dark .toolbar-time-status.overdue { color: #F87171; }
+    body.theme-dark .toolbar-time-delta { color: #CBD5E1; }
+    body.theme-dark .toolbar-time-delta.empty { color: #64748B; }
+    body.theme-dark .toolbar-time-delta.upcoming { color: #4ADE80; }
+    body.theme-dark .toolbar-time-delta.soon,
+    body.theme-dark .toolbar-time-delta.now,
+    body.theme-dark .toolbar-time-delta.past { color: #FACC15; }
+    body.theme-dark .toolbar-time-delta.overdue { color: #F87171; }
+    body.theme-dark .toolbar-time-date { color: #94A3B8; }
     body.theme-dark .toolbar-time-pick { color: #F8FAFC; }
     body.theme-dark .toolbar-time-pick.empty { color: #64748B; }
     body.theme-dark .toolbar-time-pick.upcoming { color: #22C55E; }
@@ -944,7 +1007,10 @@
       .toolbar-time-box { margin-left: 0; width: 100%; }
       .toolbar-time-head { padding: 8px 14px; }
       .toolbar-time-seg, .toolbar-time-seg + .toolbar-time-seg { min-width: 0; padding: 10px 14px; }
-      .toolbar-time-pick, .toolbar-time-now { font-size: 28px; }
+      .toolbar-time-pick, .toolbar-time-now { font-size: 26px; }
+    }
+    @media (max-width: 639px) {
+      .toolbar-time-status, .toolbar-time-date, .toolbar-time-head-meta { display: none; }
     }
     .table-card.floating-clock-open .table-toolbar-left,
     .table-card.floating-clock-open .action-group {
@@ -1567,7 +1633,7 @@
       right: 20px;
       bottom: 20px;
       z-index: 85;
-      width: 310px;
+      width: 332px;
       border-radius: 12px;
       border: 1px solid #B6CBE3;
       background: #FFFFFF;
@@ -1582,21 +1648,27 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 12px;
+      padding: 8px 14px;
       background: #E8F1FC;
       border-bottom: 1px solid #C7D6E8;
       cursor: grab;
     }
     .pip-fallback-head:active { cursor: grabbing; }
-    .pip-fallback-badge { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #DCEBFF; color: #083578; letter-spacing: 0.04em; }
+    .pip-fallback-title { font-size: 11px; font-weight: 800; color: #083578; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
     .pip-fallback-machine { font-size: 11px; font-weight: 600; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pip-fallback-close { border: none; background: transparent; color: #475569; font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
     .pip-fallback-close:hover { background: #DCEBFF; color: #083578; }
-    .pip-fallback-body { padding: 12px 16px; }
-    .pip-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .pip-fallback-body { padding: 14px 16px; }
+    .pip-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .pip-row + .pip-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid #E2EAF2; }
-    .pip-lbl { font-size: 13px; font-weight: 600; color: #475569; }
-    .pip-val { font-family: var(--font-mono); font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .pip-lbl { font-size: 12px; font-weight: 700; color: #334155; }
+    .pip-lbl.now { color: #0D4EA6; }
+    .pip-sub { margin-top: 2px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: #475569; }
+    .pip-sub.upcoming { color: #16A34A; }
+    .pip-sub.soon, .pip-sub.now, .pip-sub.past { color: #CA8A04; }
+    .pip-sub.overdue { color: #DC2626; }
+    .pip-sub.empty { color: #64748B; }
+    .pip-val { font-family: var(--font-mono); font-size: 26px; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums; }
     .pip-val.now-val { color: #083578; }
     .pip-val.pick-val { color: #0F172A; }
     .pip-val.pick-val.empty { color: #94A3B8; }
@@ -1605,15 +1677,19 @@
     .pip-val.pick-val.now,
     .pip-val.pick-val.past { color: #CA8A04; }
     .pip-val.pick-val.overdue { color: #DC2626; }
-    .pip-fallback-bar { height: 2px; margin-top: 10px; border-radius: 999px; background: rgba(13, 78, 166, 0.8); }
     body.theme-dark .pip-fallback-card { border-color: #334155; background: #0B1220; color: #F1F5F9; box-shadow: 0 18px 40px rgba(2, 6, 23, 0.55); }
     body.theme-dark .pip-fallback-head { background: #111A2E; border-bottom-color: #1E293B; }
-    body.theme-dark .pip-fallback-badge { background: rgba(51, 65, 85, 0.8); color: #E2E8F0; }
+    body.theme-dark .pip-fallback-title { color: #E2E8F0; }
     body.theme-dark .pip-fallback-machine { color: #94A3B8; }
     body.theme-dark .pip-fallback-close { color: #94A3B8; }
     body.theme-dark .pip-fallback-close:hover { background: #1E293B; color: #FFFFFF; }
     body.theme-dark .pip-row + .pip-row { border-top-color: rgba(148, 163, 184, 0.16); }
-    body.theme-dark .pip-lbl { color: #94A3B8; }
+    body.theme-dark .pip-lbl { color: #CBD5E1; }
+    body.theme-dark .pip-lbl.now { color: #7DD3FC; }
+    body.theme-dark .pip-sub { color: #94A3B8; }
+    body.theme-dark .pip-sub.upcoming { color: #22C55E; }
+    body.theme-dark .pip-sub.soon, body.theme-dark .pip-sub.now, body.theme-dark .pip-sub.past { color: #FACC15; }
+    body.theme-dark .pip-sub.overdue { color: #F87171; }
     body.theme-dark .pip-val.now-val { color: #38BDF8; }
     body.theme-dark .pip-val.pick-val { color: #F8FAFC; }
     body.theme-dark .pip-val.pick-val.empty { color: #64748B; }
@@ -1622,7 +1698,6 @@
     body.theme-dark .pip-val.pick-val.now,
     body.theme-dark .pip-val.pick-val.past { color: #FACC15; }
     body.theme-dark .pip-val.pick-val.overdue { color: #F87171; }
-    body.theme-dark .pip-fallback-bar { background: rgba(16, 185, 129, 0.85); }
 
     /* Print */
     .print-only { display: none; }
@@ -1979,6 +2054,7 @@
                   <div class="toolbar-time-title">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                     <span>Đồng hồ ca chụp</span>
+                    <span id="toolbarClockShift" class="toolbar-time-head-meta" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted);">· Ca sáng</span>
                   </div>
                   <button id="btnPipClock" class="toolbar-pip-btn" type="button" aria-pressed="false" title="Chuyển đồng hồ thành cửa sổ nổi luôn hiển thị (Phím H)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"></path><rect x="12" y="13" width="10" height="7" rx="2"></rect></svg>
@@ -1988,14 +2064,24 @@
                 </div>
                 <div class="toolbar-time-grid">
                   <div class="toolbar-time-seg">
-                    <div class="toolbar-time-lbl">
-                      <span>Đã chọn sau cùng</span>
+                    <div class="toolbar-time-top">
+                      <span class="toolbar-time-lbl">Đã chọn sau cùng</span>
+                      <span id="toolbarLastPickStatus" class="toolbar-time-status empty">Chưa chọn ca</span>
                     </div>
-                    <div id="toolbarLastPick" class="toolbar-time-pick empty">--:--</div>
+                    <div class="toolbar-time-val-row">
+                      <div id="toolbarLastPick" class="toolbar-time-pick empty">--:--</div>
+                      <div id="toolbarLastPickDelta" class="toolbar-time-delta empty">—</div>
+                    </div>
                   </div>
                   <div class="toolbar-time-seg">
-                    <div class="toolbar-time-lbl now-lbl">Giờ hiện tại (VN)</div>
-                    <div id="toolbarLiveClock" class="toolbar-time-now">--:--:--</div>
+                    <div class="toolbar-time-top">
+                      <span class="toolbar-time-lbl now-lbl">Giờ hiện tại (VN)</span>
+                      <span id="toolbarLiveShift" class="toolbar-time-status">Ca sáng · UTC+7</span>
+                    </div>
+                    <div class="toolbar-time-val-row">
+                      <div id="toolbarLiveClock" class="toolbar-time-now">--:--:--</div>
+                      <div id="toolbarLiveDate" class="toolbar-time-date">—</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2410,22 +2496,28 @@
 
   <div id="pipFallbackCard" class="pip-fallback-card no-print" role="dialog" aria-label="Đồng hồ nổi">
     <div id="pipFallbackHead" class="pip-fallback-head">
-      <div style="display:flex;align-items:center;gap:8px;min-width:0;">
-        <span class="pip-fallback-badge">TRỰC TIẾP</span>
+      <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+        <span class="pip-fallback-title">Đồng hồ nổi</span>
+        <span style="color:#64748B;">·</span>
         <span id="pipFallbackMachine" class="pip-fallback-machine">TITAN 2000</span>
       </div>
       <button id="btnClosePipFallback" class="pip-fallback-close" type="button" aria-label="Đóng đồng hồ nổi">✕</button>
     </div>
     <div class="pip-fallback-body">
       <div class="pip-row">
-        <span class="pip-lbl">Giờ hiện tại:</span>
+        <div>
+          <div class="pip-lbl now">Giờ hiện tại (VN)</div>
+          <div id="pipFallbackShift" class="pip-sub">Ca sáng · UTC+7</div>
+        </div>
         <span id="pipFallbackNow" class="pip-val now-val">--:--:--</span>
       </div>
       <div class="pip-row">
-        <span class="pip-lbl">Giờ đã chọn:</span>
+        <div>
+          <div class="pip-lbl">Đã chọn sau cùng</div>
+          <div id="pipFallbackPickMeta" class="pip-sub empty">Chưa chọn ca</div>
+        </div>
         <span id="pipFallbackPick" class="pip-val pick-val empty">--:--</span>
       </div>
-      <div class="pip-fallback-bar"></div>
     </div>
   </div>
 
@@ -3385,24 +3477,56 @@
 
         var statusClass = "";
         var color = "#CBD5E1";
+        var statusLabel = "Chưa chọn ca";
+        var deltaLabel = "—";
         if (!chosen) {
           statusClass = "empty";
+        } else if (viewedDateKey !== todayKey) {
+          statusClass = "neutral";
+          color = "#F8FAFC";
+          statusLabel = "Ngày " + formatDateVN(viewedDateKey);
+          deltaLabel = "Chỉ xem";
         } else {
           color = "#F8FAFC";
-          if (viewedDateKey === todayKey && chosenMin >= 0) {
+          statusLabel = "Giờ đã chọn";
+          if (chosenMin >= 0) {
             var p = getVNParts();
             var nowSec = p.hour * 3600 + p.minute * 60 + p.second;
             var deltaSec = chosenMin * 60 - nowSec;
-            if (deltaSec > 3) { statusClass = "upcoming"; color = "#22C55E"; }
-            else if (deltaSec >= 0) { statusClass = "soon"; color = "#FACC15"; }
-            else { statusClass = "overdue"; color = "#F87171"; }
+            var abs = Math.abs(deltaSec);
+            var dur;
+            if (abs < 60) {
+              dur = abs + "s";
+            } else if (abs < 3600) {
+              dur = String(Math.floor(abs / 60)).padStart(2, "0") + "p " + String(abs % 60).padStart(2, "0") + "s";
+            } else {
+              dur = Math.floor(abs / 3600) + "h " + String(Math.floor((abs % 3600) / 60)).padStart(2, "0") + "p";
+            }
+            if (deltaSec > 3) {
+              statusClass = "upcoming";
+              color = "#22C55E";
+              statusLabel = "Trước giờ thực tế";
+              deltaLabel = "Còn +" + dur;
+            } else if (deltaSec >= 0) {
+              statusClass = "soon";
+              color = "#FACC15";
+              statusLabel = deltaSec === 0 ? "Đúng giờ hiện tại" : "Sắp đến giờ";
+              deltaLabel = deltaSec === 0 ? "0s" : "Còn +" + deltaSec + "s";
+            } else {
+              statusClass = "overdue";
+              color = "#F87171";
+              statusLabel = "Đã qua giờ";
+              deltaLabel = "Quá " + dur;
+            }
           }
         }
         return {
           machineName: (mCfg && mCfg.name) || key,
           picked: chosen || "--:--",
           color: color,
-          statusClass: statusClass
+          statusClass: statusClass,
+          statusLabel: statusLabel,
+          deltaLabel: deltaLabel
         };
       }
       var lastSnapshotSig = "";
@@ -3800,23 +3924,53 @@
         });
       }
 
+      function renderLastPickTelemetry() {
+        var pickInfo = resolveLastPickedInfo(activeMachine);
+        var clsSuffix = pickInfo.statusClass ? " " + pickInfo.statusClass : "";
+        var tbPick = $("toolbarLastPick");
+        if (tbPick) {
+          tbPick.textContent = pickInfo.picked;
+          tbPick.className = "toolbar-time-pick" + clsSuffix;
+        }
+        var tbStatus = $("toolbarLastPickStatus");
+        if (tbStatus) {
+          tbStatus.textContent = pickInfo.statusLabel;
+          tbStatus.className = "toolbar-time-status" + clsSuffix;
+        }
+        var tbDelta = $("toolbarLastPickDelta");
+        if (tbDelta) {
+          tbDelta.textContent = pickInfo.deltaLabel;
+          tbDelta.className = "toolbar-time-delta" + clsSuffix;
+        }
+      }
+
       function updateClock() {
         var p = getVNParts();
         $("clockTime").textContent = p.timeStr;
         var tbClock = $("toolbarLiveClock");
         if (tbClock) tbClock.textContent = p.timeStr;
         var isAfternoon = p.hour >= 12;
-        $("clockShift").textContent = (isAfternoon ? "Ca chiều" : "Ca sáng") + " · Giờ VN";
+        var shiftText = isAfternoon ? "Ca chiều" : "Ca sáng";
+        $("clockShift").textContent = shiftText + " · Giờ VN";
+        var tbLiveShift = $("toolbarLiveShift");
+        if (tbLiveShift) tbLiveShift.textContent = shiftText + " · UTC+7";
+        var tbHeadShift = $("toolbarClockShift");
+        if (tbHeadShift) {
+          tbHeadShift.textContent = viewedDateKey === todayKey ? ("· " + shiftText) : ("· Ngày " + formatDateVN(viewedDateKey));
+        }
         var dt = new Date(Date.UTC(p.year, p.month - 1, p.day));
         var weekday = new Intl.DateTimeFormat("vi-VN", { weekday: "long", timeZone: "UTC" }).format(dt);
         var capDay = weekday.charAt(0).toUpperCase() + weekday.slice(1);
         var dd = String(p.day).padStart(2, "0"), mm = String(p.month).padStart(2, "0");
+        var tbLiveDate = $("toolbarLiveDate");
+        if (tbLiveDate) tbLiveDate.textContent = dd + "/" + mm + "/" + p.year;
         var solar = capDay + ", " + dd + "/" + mm + "/" + p.year;
         var lunarObj = solarToLunar(p.day, p.month, p.year);
         var lunar = "ÂL " + String(lunarObj.day).padStart(2, "0") + "/" + String(lunarObj.month).padStart(2, "0") + "/" + lunarObj.year +
           (lunarObj.leap ? " (nhuận)" : "") + " · " + lunarObj.yearName;
         $("calSolarText").textContent = solar;
         $("calLunarText").textContent = lunar;
+        renderLastPickTelemetry();
       }
 
       function updateMetadataAndCounts() {
@@ -3840,13 +3994,14 @@
         if ($("heroProgressVal")) $("heroProgressVal").innerHTML = activeCount + "<span>/" + activeTotal + " ca</span>";
         if ($("heroProgressBar")) $("heroProgressBar").style.width = activePct + "%";
 
-        var pickInfo = resolveLastPickedInfo(activeMachine);
-        var tbPick = $("toolbarLastPick");
-        if (tbPick) {
-          tbPick.textContent = pickInfo.picked;
-          tbPick.className = "toolbar-time-pick" + (pickInfo.statusClass ? " " + pickInfo.statusClass : "");
-        }
+        renderLastPickTelemetry();
         var isToday = viewedDateKey === todayKey;
+        var tbHeadShift = $("toolbarClockShift");
+        if (tbHeadShift) {
+          var pNow = getVNParts();
+          var curShift = pNow.hour >= 12 ? "Ca chiều" : "Ca sáng";
+          tbHeadShift.textContent = isToday ? ("· " + curShift) : ("· Ngày " + formatDateVN(viewedDateKey));
+        }
         $("btnToday").classList.toggle("primary", isToday);
         $("readOnlyBanner").style.display = isToday ? "none" : "flex";
         $("readOnlyDateText").textContent = formatDateVN(viewedDateKey);
@@ -5496,13 +5651,22 @@
       function drawPipClockFrame() {
         var p = getVNParts();
         var info = getCurrentLastPickInfo();
+        var shiftText = p.hour >= 12 ? "Ca chiều" : "Ca sáng";
+        var isTodayFlag = viewedDateKey === todayKey;
         var fbNow = $("pipFallbackNow");
+        var fbShift = $("pipFallbackShift");
         var fbPick = $("pipFallbackPick");
+        var fbPickMeta = $("pipFallbackPickMeta");
         var fbMach = $("pipFallbackMachine");
         if (fbNow) fbNow.textContent = p.timeStr;
+        if (fbShift) fbShift.textContent = shiftText + " · UTC+7";
         if (fbPick) {
           fbPick.textContent = info.picked;
           fbPick.className = "pip-val pick-val " + (info.statusClass || "empty");
+        }
+        if (fbPickMeta) {
+          fbPickMeta.textContent = info.picked !== "--:--" ? (info.statusLabel + " · " + info.deltaLabel) : info.statusLabel;
+          fbPickMeta.className = "pip-sub" + (info.statusClass ? " " + info.statusClass : "");
         }
         if (fbMach) fbMach.textContent = info.machineName;
 
@@ -5513,36 +5677,54 @@
         var W = canvas.width, H = canvas.height;
         ctx.fillStyle = "#0B1220";
         ctx.fillRect(0, 0, W, H);
-        ctx.strokeStyle = "rgba(148, 163, 184, 0.14)";
+
+        ctx.fillStyle = "#111A2E";
+        ctx.fillRect(0, 0, W, 44);
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.16)";
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(32, 134);
-        ctx.lineTo(W - 32, 134);
+        ctx.moveTo(0, 44);
+        ctx.lineTo(W, 44);
         ctx.stroke();
 
-        ctx.fillStyle = "#64748B";
-        ctx.font = "700 15px system-ui, sans-serif";
+        ctx.beginPath();
+        ctx.moveTo(28, 146);
+        ctx.lineTo(W - 28, 146);
+        ctx.stroke();
+
+        ctx.fillStyle = "#CBD5E1";
+        ctx.font = '700 15px "Plus Jakarta Sans", system-ui, sans-serif';
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(viewedDateKey === todayKey ? info.machineName : (info.machineName + " · Chỉ xem"), W / 2, 26);
+        var subLabel = isTodayFlag ? (info.machineName + " · " + shiftText) : (info.machineName + " · Chỉ xem");
+        ctx.fillText(subLabel, W / 2, 22);
 
         ctx.textAlign = "left";
         ctx.fillStyle = "#94A3B8";
-        ctx.font = "600 28px system-ui, sans-serif";
-        ctx.fillText("Giờ hiện tại:", 34, 88);
+        ctx.font = '600 22px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText("Giờ hiện tại (VN)", 32, 95);
         ctx.textAlign = "right";
-        ctx.fillStyle = "#149CE0";
-        ctx.font = "800 50px monospace";
-        ctx.fillText(p.timeStr, W - 34, 88);
+        ctx.fillStyle = "#38BDF8";
+        ctx.font = '800 46px "JetBrains Mono", ui-monospace, monospace';
+        ctx.fillText(p.timeStr, W - 32, 95);
 
         ctx.textAlign = "left";
         ctx.fillStyle = "#94A3B8";
-        ctx.font = "600 28px system-ui, sans-serif";
-        ctx.fillText("Giờ đã chọn:", 34, 184);
+        ctx.font = '600 22px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText("Đã chọn sau cùng", 32, 186);
+
+        ctx.fillStyle = info.color;
+        ctx.font = '700 17px "JetBrains Mono", ui-monospace, monospace';
+        ctx.fillText(
+          info.picked !== "--:--" ? (info.statusLabel + " · " + info.deltaLabel) : info.statusLabel,
+          32,
+          220
+        );
+
         ctx.textAlign = "right";
         ctx.fillStyle = info.color;
-        ctx.font = "800 50px monospace";
-        ctx.fillText(info.picked, W - 34, 184);
+        ctx.font = '800 46px "JetBrains Mono", ui-monospace, monospace';
+        ctx.fillText(info.picked, W - 32, 200);
       }
 
       var pipVideoEl = $("pipClockVideo");

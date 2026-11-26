@@ -277,3 +277,69 @@ export function compareDateWithToday(dateKey: string, todayKey: string): 'today'
   if (!dateKey || !todayKey || dateKey === todayKey) return 'today';
   return dateKey < todayKey ? 'past' : 'future';
 }
+
+export interface LastPickTelemetry {
+  tone: 'empty' | 'neutral' | 'upcoming' | 'soon' | 'overdue';
+  statusLabel: string;
+  deltaLabel: string;
+}
+
+export function describeLastPickOffsetVN(
+  pickedHHMM: string | null,
+  isToday: boolean,
+  viewedDateKey?: string,
+  now: Date = new Date()
+): LastPickTelemetry {
+  if (!pickedHHMM) {
+    return {
+      tone: 'empty',
+      statusLabel: 'Chưa chọn ca',
+      deltaLabel: '—',
+    };
+  }
+  if (!isToday) {
+    return {
+      tone: 'neutral',
+      statusLabel: viewedDateKey ? `Ngày ${formatDateDisplayVN(viewedDateKey)}` : 'Chế độ xem lại',
+      deltaLabel: 'Chỉ xem',
+    };
+  }
+  const pickedMin = parseHHMM(pickedHHMM);
+  if (pickedMin === null) {
+    return { tone: 'neutral', statusLabel: 'Giờ đã chọn', deltaLabel: '—' };
+  }
+  const deltaSec = pickedMin * 60 - nowSecondsVN(now);
+  const abs = Math.abs(deltaSec);
+  let dur: string;
+  if (abs < 60) {
+    dur = `${abs}s`;
+  } else if (abs < 3600) {
+    const mm = Math.floor(abs / 60);
+    const ss = abs % 60;
+    dur = `${String(mm).padStart(2, '0')}p ${String(ss).padStart(2, '0')}s`;
+  } else {
+    const hh = Math.floor(abs / 3600);
+    const mm = Math.floor((abs % 3600) / 60);
+    dur = `${hh}h ${String(mm).padStart(2, '0')}p`;
+  }
+
+  if (deltaSec > 3) {
+    return {
+      tone: 'upcoming',
+      statusLabel: 'Trước giờ thực tế',
+      deltaLabel: `Còn +${dur}`,
+    };
+  }
+  if (deltaSec >= 0) {
+    return {
+      tone: 'soon',
+      statusLabel: deltaSec === 0 ? 'Đúng giờ hiện tại' : 'Sắp đến giờ',
+      deltaLabel: deltaSec === 0 ? '0s' : `Còn +${deltaSec}s`,
+    };
+  }
+  return {
+    tone: 'overdue',
+    statusLabel: 'Đã qua giờ',
+    deltaLabel: `Quá ${dur}`,
+  };
+}

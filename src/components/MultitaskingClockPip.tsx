@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { GripHorizontal, X } from 'lucide-react';
-import { formatTimeVN } from '../utils/vnTime';
+import { describeLastPickOffsetVN, formatTimeVN, getVNNowParts } from '../utils/vnTime';
 
 export interface MultitaskingClockPipHandle {
   toggle: () => void;
@@ -73,7 +73,8 @@ export const MultitaskingClockPip = forwardRef<
 
   const [pipActive, setPipActive] = useState(false);
   const [fallbackOpen, setFallbackOpen] = useState(false);
-  const [nowText, setNowText] = useState(() => formatTimeVN(new Date()));
+  const [nowDate, setNowDate] = useState<Date>(() => new Date());
+  const nowText = formatTimeVN(nowDate);
 
   // Draggable state for in-page floating popup fallback
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
@@ -107,50 +108,71 @@ export const MultitaskingClockPip = forwardRef<
       lastPickTone: tone,
       isToday: todayFlag,
     } = latestPropsRef.current;
-    const liveTime = formatTimeVN(new Date());
-    setNowText(liveTime);
+    const now = new Date();
+    const liveTime = formatTimeVN(now);
+    const vnParts = getVNNowParts(now);
+    const shiftText = vnParts.hh >= 12 ? 'Ca chiều' : 'Ca sáng';
+    const telemetry = describeLastPickOffsetVN(picked, todayFlag, undefined, now);
+    setNowDate(now);
 
     // Background
     ctx.fillStyle = '#0B1220';
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // Subtle divider line between rows
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+    // Subtle header band
+    ctx.fillStyle = '#111A2E';
+    ctx.fillRect(0, 0, CANVAS_W, 44);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(32, 134);
-    ctx.lineTo(CANVAS_W - 32, 134);
+    ctx.moveTo(0, 44);
+    ctx.lineTo(CANVAS_W, 44);
     ctx.stroke();
 
-    // Subtle machine context centered near top (away from Chrome PiP corner buttons)
-    ctx.fillStyle = '#64748B';
+    // Subtle divider line between rows
+    ctx.beginPath();
+    ctx.moveTo(28, 146);
+    ctx.lineTo(CANVAS_W - 28, 146);
+    ctx.stroke();
+
+    // Top context line
+    ctx.fillStyle = '#CBD5E1';
     ctx.font = '700 15px "Plus Jakarta Sans", system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const subLabel = todayFlag ? curMachine : `${curMachine} · Chỉ xem`;
-    ctx.fillText(subLabel, CANVAS_W / 2, 26);
+    const subLabel = todayFlag ? `${curMachine} · ${shiftText}` : `${curMachine} · Chỉ xem`;
+    ctx.fillText(subLabel, CANVAS_W / 2, 22);
 
     // Row 1: Giờ hiện tại
     ctx.textAlign = 'left';
     ctx.fillStyle = '#94A3B8';
-    ctx.font = '600 28px "Plus Jakarta Sans", system-ui, -apple-system, sans-serif';
-    ctx.fillText('Giờ hiện tại:', 34, 88);
+    ctx.font = '600 22px "Plus Jakarta Sans", system-ui, -apple-system, sans-serif';
+    ctx.fillText('Giờ hiện tại (VN)', 32, 95);
 
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#149CE0';
-    ctx.font = '800 50px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillText(liveTime, CANVAS_W - 34, 88);
+    ctx.fillStyle = '#38BDF8';
+    ctx.font = '800 46px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillText(liveTime, CANVAS_W - 32, 95);
 
-    // Row 2: Giờ đã chọn
+    // Row 2: Giờ đã chọn + live delta
     ctx.textAlign = 'left';
     ctx.fillStyle = '#94A3B8';
-    ctx.font = '600 28px "Plus Jakarta Sans", system-ui, -apple-system, sans-serif';
-    ctx.fillText('Giờ đã chọn:', 34, 184);
+    ctx.font = '600 22px "Plus Jakarta Sans", system-ui, -apple-system, sans-serif';
+    ctx.fillText('Đã chọn sau cùng', 32, 186);
+
+    const pickColor = getLastPickHex(picked, tone);
+    ctx.fillStyle = pickColor;
+    ctx.font = '700 17px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillText(
+      picked ? `${telemetry.statusLabel} · ${telemetry.deltaLabel}` : telemetry.statusLabel,
+      32,
+      220
+    );
 
     ctx.textAlign = 'right';
-    ctx.fillStyle = getLastPickHex(picked, tone);
-    ctx.font = '800 50px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillText(picked || '--:--', CANVAS_W - 34, 184);
+    ctx.fillStyle = pickColor;
+    ctx.font = '800 46px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillText(picked || '--:--', CANVAS_W - 32, 200);
   }, []);
 
   // Redraw immediately when relevant props change and tick every 1s while active
@@ -329,67 +351,81 @@ export const MultitaskingClockPip = forwardRef<
       />
 
       {/* Fallback Floating Multitasking Popup (when native PiP is blocked/unavailable) */}
-      {fallbackOpen && (
-        <div
-          ref={popupCardRef}
-          role="dialog"
-          aria-label="Đồng hồ nổi"
-          style={
-            dragPos
-              ? { left: dragPos.x, top: dragPos.y, right: 'auto', bottom: 'auto' }
-              : undefined
-          }
-          className="no-print fixed bottom-5 right-5 z-50 w-[320px] rounded-xl border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-[#0B1220] text-[#0F172A] dark:text-slate-100 shadow-[0_14px_34px_rgba(8,53,120,0.18)] dark:shadow-2xl overflow-hidden select-none"
-        >
+      {fallbackOpen && (() => {
+        const vnParts = getVNNowParts(nowDate);
+        const shiftText = vnParts.hh >= 12 ? 'Ca chiều' : 'Ca sáng';
+        const telemetry = describeLastPickOffsetVN(lastPickedStart, isToday, undefined, nowDate);
+        const pickColorCls = getLastPickClass(lastPickedStart, lastPickTone);
+        return (
           <div
-            onPointerDown={handleStartDrag}
-            className="flex items-center justify-between px-3.5 py-2 bg-[#E8F1FC] dark:bg-[#111A2E] border-b border-[#C7D6E8] dark:border-slate-800 cursor-grab active:cursor-grabbing"
+            ref={popupCardRef}
+            role="dialog"
+            aria-label="Đồng hồ nổi"
+            style={
+              dragPos
+                ? { left: dragPos.x, top: dragPos.y, right: 'auto', bottom: 'auto' }
+                : undefined
+            }
+            className="no-print fixed bottom-5 right-5 z-50 w-[332px] rounded-xl border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-[#0B1220] text-[#0F172A] dark:text-slate-100 shadow-[0_14px_34px_rgba(8,53,120,0.18)] dark:shadow-2xl overflow-hidden select-none"
           >
-            <div className="flex items-center gap-2 min-w-0">
-              <GripHorizontal className="w-3.5 h-3.5 text-[#475569] dark:text-slate-400 shrink-0" />
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#DCEBFF] dark:bg-slate-700/80 text-[10px] font-bold tracking-wider text-[#083578] dark:text-slate-200 uppercase">
-                TRỰC TIẾP
-              </span>
-              <span className="text-[11px] font-semibold text-[#334155] dark:text-slate-400 truncate">
-                {machineName}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setFallbackOpen(false)}
-              aria-label="Đóng đồng hồ nổi"
-              className="p-1 rounded-md text-[#475569] dark:text-slate-400 hover:text-[#083578] dark:hover:text-white hover:bg-[#DCEBFF] dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            <div
+              onPointerDown={handleStartDrag}
+              className="flex items-center justify-between px-3.5 py-2 bg-[#E8F1FC] dark:bg-[#111A2E] border-b border-[#C7D6E8] dark:border-slate-800 cursor-grab active:cursor-grabbing"
             >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="px-4 py-3.5 space-y-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm font-semibold text-[#475569] dark:text-slate-400">
-                Giờ hiện tại:
-              </span>
-              <span className="font-mono text-2xl font-extrabold tabular-nums text-[#083578] dark:text-[#38BDF8]">
-                {nowText}
-              </span>
-            </div>
-            <div className="pt-2.5 border-t border-[#E2EAF2] dark:border-slate-800/80 flex items-baseline justify-between gap-3">
-              <span className="text-sm font-semibold text-[#475569] dark:text-slate-400">
-                Giờ đã chọn:
-              </span>
-              <span
-                className={`font-mono text-2xl font-extrabold tabular-nums ${getLastPickClass(
-                  lastPickedStart,
-                  lastPickTone
-                )}`}
+              <div className="flex items-center gap-2 min-w-0 text-[11px] font-bold text-[#083578] dark:text-slate-200">
+                <GripHorizontal className="w-3.5 h-3.5 text-[#475569] dark:text-slate-400 shrink-0" />
+                <span className="uppercase tracking-wide whitespace-nowrap">Đồng hồ nổi</span>
+                <span className="text-[#475569] dark:text-slate-500" aria-hidden="true">·</span>
+                <span className="font-semibold text-[#334155] dark:text-slate-400 truncate">
+                  {machineName}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFallbackOpen(false)}
+                aria-label="Đóng đồng hồ nổi"
+                className="p-1 rounded-md text-[#475569] dark:text-slate-400 hover:text-[#083578] dark:hover:text-white hover:bg-[#DCEBFF] dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                {lastPickedStart || '--:--'}
-              </span>
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="h-0.5 w-full rounded-full bg-[#0D4EA6]/80 dark:bg-emerald-500/80" />
+
+            <div className="px-4 py-3.5 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-[#0D4EA6] dark:text-sky-300">
+                    Giờ hiện tại (VN)
+                  </div>
+                  <div className="text-[11px] font-semibold text-[#475569] dark:text-slate-400 mt-0.5">
+                    {shiftText} · UTC+7
+                  </div>
+                </div>
+                <span className="font-mono text-[26px] leading-none font-extrabold tabular-nums text-[#083578] dark:text-[#38BDF8]">
+                  {nowText}
+                </span>
+              </div>
+
+              <div className="pt-2.5 border-t border-[#E2EAF2] dark:border-slate-800/80 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-[#334155] dark:text-slate-300">
+                    Đã chọn sau cùng
+                  </div>
+                  <div className={`text-[11px] font-mono font-bold tabular-nums mt-0.5 ${pickColorCls}`}>
+                    {lastPickedStart
+                      ? `${telemetry.statusLabel} · ${telemetry.deltaLabel}`
+                      : telemetry.statusLabel}
+                  </div>
+                </div>
+                <span
+                  className={`font-mono text-[26px] leading-none font-extrabold tabular-nums ${pickColorCls}`}
+                >
+                  {lastPickedStart || '--:--'}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </>
   );
 });

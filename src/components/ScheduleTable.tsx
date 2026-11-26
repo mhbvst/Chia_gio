@@ -18,7 +18,14 @@ import {
 } from 'lucide-react';
 import { MachineConfig, ScheduleRow } from '../data/schedules';
 import { countCheckedSlotsInRows, countTotalSlots } from '../utils/scheduleGenerator';
-import { formatDateDisplayVN, formatTimeVN, nowSecondsVN, parseHHMM } from '../utils/vnTime';
+import {
+  describeLastPickOffsetVN,
+  formatDateDisplayVN,
+  formatTimeVN,
+  getVNNowParts,
+  nowSecondsVN,
+  parseHHMM,
+} from '../utils/vnTime';
 
 export type TableRowSpacing = 'compact' | 'standard' | 'spacious';
 export type TableFontWeight = 400 | 500 | 600 | 700 | 800;
@@ -419,7 +426,17 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
     [rows, slots]
   );
 
-  const liveClockVN = formatTimeVN(new Date(nowTick));
+  const nowDateObj = new Date(nowTick);
+  const liveClockVN = formatTimeVN(nowDateObj);
+  const vnPartsNow = getVNNowParts(nowDateObj);
+  const liveDateVN = `${String(vnPartsNow.dd).padStart(2, '0')}/${String(vnPartsNow.mm).padStart(2, '0')}/${vnPartsNow.yy}`;
+  const liveShiftVN = vnPartsNow.hh >= 12 ? 'Ca chiều' : 'Ca sáng';
+  const pickTelemetry = describeLastPickOffsetVN(
+    lastPickedStart,
+    isToday,
+    viewedDateKey,
+    nowDateObj
+  );
   const lastPickColorClass = !lastPickedStart
     ? 'text-slate-400 dark:text-slate-500'
     : lastPickTone === 'upcoming'
@@ -429,6 +446,15 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
     : lastPickTone === 'overdue'
     ? 'text-[#DC2626] dark:text-[#F87171]'
     : 'text-[#0F172A] dark:text-slate-50';
+  const lastPickMetaClass = !lastPickedStart
+    ? 'text-[#64748B] dark:text-slate-500'
+    : lastPickTone === 'upcoming'
+    ? 'text-[#15803D] dark:text-[#4ADE80]'
+    : lastPickTone === 'past' || lastPickTone === 'now'
+    ? 'text-[#B45309] dark:text-[#FACC15]'
+    : lastPickTone === 'overdue'
+    ? 'text-[#B91C1C] dark:text-[#F87171]'
+    : 'text-[#334155] dark:text-slate-400';
 
   const rowSpacingMeta =
     displaySettings.rowSpacing === 'compact'
@@ -768,14 +794,20 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
         {/* Right: Balanced clinical dual-time console (hidden when floating clock is open) */}
         {!floatingClockOpen && (
           <div
-            className="xl:ml-auto shrink-0 rounded-lg border border-[#C7D6E8] dark:border-slate-700/80 bg-white dark:bg-[#0B1220] shadow-[0_2px_8px_rgba(8,53,120,0.08)] dark:shadow-[0_4px_16px_rgba(2,6,23,0.4)] overflow-hidden"
+            className="w-full xl:w-auto xl:ml-auto shrink-0 rounded-lg border border-[#C7D6E8] dark:border-slate-700/80 bg-white dark:bg-[#0B1220] shadow-[0_2px_8px_rgba(8,53,120,0.08)] dark:shadow-[0_4px_16px_rgba(2,6,23,0.4)] overflow-hidden"
             title="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực (Giờ Việt Nam)"
             aria-label="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực"
           >
-            <div className="flex items-center justify-between gap-4 px-4 py-1.5 border-b border-[#C7D6E8] dark:border-slate-800/90 bg-[#E8F1FC] dark:bg-[#111A2E]">
-              <div className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-[#083578] dark:text-slate-300 uppercase whitespace-nowrap">
+            <div className="flex items-center justify-between gap-4 px-3.5 sm:px-4 py-1.5 border-b border-[#C7D6E8] dark:border-slate-800/90 bg-[#E8F1FC] dark:bg-[#111A2E]">
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-[#083578] dark:text-slate-200 whitespace-nowrap min-w-0">
                 <Clock3 className="w-3.5 h-3.5 text-[#0D4EA6] dark:text-[#38BDF8] shrink-0" aria-hidden="true" />
-                <span>Đồng hồ ca chụp</span>
+                <span className="uppercase">Đồng hồ ca chụp</span>
+                <span className="hidden sm:inline font-semibold text-[#475569] dark:text-slate-400" aria-hidden="true">
+                  ·
+                </span>
+                <span className="hidden sm:inline font-semibold text-[#334155] dark:text-slate-400 truncate">
+                  {isToday ? liveShiftVN : `Ngày ${formatDateDisplayVN(viewedDateKey)}`}
+                </span>
               </div>
               {onToggleFloatingClock && (
                 <button
@@ -795,23 +827,47 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
             </div>
 
             <div className="grid grid-cols-2 divide-x divide-[#C7D6E8] dark:divide-slate-800">
-              <div className="px-4 sm:px-5 py-2.5 sm:py-3 flex flex-col justify-center min-w-[146px] sm:min-w-[170px] bg-white dark:bg-transparent">
-                <div className="text-[11.5px] font-semibold text-[#475569] dark:text-slate-400 whitespace-nowrap">
-                  Đã chọn sau cùng
+              <div className="px-3.5 sm:px-4 py-2.5 flex flex-col justify-center min-w-[164px] sm:min-w-[214px] bg-white dark:bg-transparent">
+                <div className="flex items-center justify-between gap-2 text-[11px] leading-tight">
+                  <span className="font-semibold text-[#475569] dark:text-slate-400 whitespace-nowrap">
+                    Đã chọn sau cùng
+                  </span>
+                  <span
+                    className={`hidden sm:inline font-bold whitespace-nowrap truncate ${lastPickMetaClass}`}
+                  >
+                    {pickTelemetry.statusLabel}
+                  </span>
                 </div>
-                <div
-                  className={`mt-1 font-mono text-[28px] sm:text-[34px] xl:text-[38px] leading-none font-extrabold tabular-nums tracking-tight ${lastPickColorClass}`}
-                >
-                  {lastPickedStart || '--:--'}
+                <div className="mt-1.5 flex items-baseline justify-between gap-2.5">
+                  <div
+                    className={`font-mono text-[26px] sm:text-[32px] xl:text-[34px] leading-none font-extrabold tabular-nums tracking-tight ${lastPickColorClass}`}
+                  >
+                    {lastPickedStart || '--:--'}
+                  </div>
+                  <div
+                    className={`font-mono text-[11.5px] sm:text-xs font-bold tabular-nums whitespace-nowrap ${lastPickMetaClass}`}
+                  >
+                    {pickTelemetry.deltaLabel}
+                  </div>
                 </div>
               </div>
 
-              <div className="px-4 sm:px-5 py-2.5 sm:py-3 flex flex-col justify-center min-w-[172px] sm:min-w-[208px] bg-[#F4F8FF] dark:bg-slate-900/55">
-                <div className="text-[11.5px] font-semibold text-[#0D4EA6] dark:text-sky-300/90 whitespace-nowrap">
-                  Giờ hiện tại (VN)
+              <div className="px-3.5 sm:px-4 py-2.5 flex flex-col justify-center min-w-[172px] sm:min-w-[228px] bg-[#F4F8FF] dark:bg-slate-900/55">
+                <div className="flex items-center justify-between gap-2 text-[11px] leading-tight">
+                  <span className="font-semibold text-[#0D4EA6] dark:text-sky-300/90 whitespace-nowrap">
+                    Giờ hiện tại (VN)
+                  </span>
+                  <span className="hidden sm:inline font-semibold text-[#475569] dark:text-slate-400 whitespace-nowrap">
+                    {liveShiftVN} · UTC+7
+                  </span>
                 </div>
-                <div className="mt-1 font-mono text-[28px] sm:text-[34px] xl:text-[38px] leading-none font-extrabold tabular-nums tracking-tight text-[#083578] dark:text-[#38BDF8]">
-                  {liveClockVN}
+                <div className="mt-1.5 flex items-baseline justify-between gap-2.5">
+                  <div className="font-mono text-[26px] sm:text-[32px] xl:text-[34px] leading-none font-extrabold tabular-nums tracking-tight text-[#083578] dark:text-[#38BDF8]">
+                    {liveClockVN}
+                  </div>
+                  <div className="hidden md:inline font-mono text-[11.5px] sm:text-xs font-semibold tabular-nums text-[#334155] dark:text-slate-400 whitespace-nowrap">
+                    {liveDateVN}
+                  </div>
                 </div>
               </div>
             </div>
