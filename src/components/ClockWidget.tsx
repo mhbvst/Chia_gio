@@ -160,19 +160,19 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({
 
   return (
     <div className="relative shrink-0" ref={containerRef}>
-      <div className="inline-flex items-stretch rounded-xl border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 shadow-[0_1px_3px_rgba(8,53,120,0.08)] overflow-hidden">
+      <div className="inline-flex items-stretch h-10 rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(8,53,120,0.06)] overflow-hidden">
         {/* Left Segment: Real-Time Digital Clinical Clock */}
         <div
-          className="flex items-center gap-2.5 px-3.5 py-1.5 bg-[#083578] dark:bg-sky-950 text-white select-none shrink-0"
+          className="flex items-center gap-2 px-3 bg-[#083578] dark:bg-sky-950 text-white select-none shrink-0"
           aria-label={`Giờ Việt Nam hiện tại ${timeStr}, ${isMorning ? 'Ca sáng' : 'Ca chiều'}`}
         >
-          <Clock className="w-4 h-4 text-sky-300 shrink-0" aria-hidden="true" />
+          <Clock className="w-3.5 h-3.5 text-sky-300 shrink-0" aria-hidden="true" />
           <div className="leading-none">
-            <div className="font-mono text-[15px] sm:text-base font-extrabold tracking-wider tabular-nums text-white">
+            <div className="font-mono text-sm sm:text-[15px] font-extrabold tracking-wide tabular-nums text-white">
               {timeStr}
             </div>
-            <div className="text-[10.5px] font-semibold text-sky-200 mt-1 whitespace-nowrap">
-              {isMorning ? 'Ca sáng' : 'Ca chiều'} · Giờ VN
+            <div className="text-[10px] font-semibold text-sky-200 mt-0.5 whitespace-nowrap">
+              {isMorning ? 'Ca sáng' : 'Ca chiều'} · VN
             </div>
           </div>
         </div>
@@ -184,15 +184,15 @@ export const ClockWidget: React.FC<ClockWidgetProps> = ({
           aria-expanded={calendarOpen}
           aria-label="Mở lịch Dương lịch và Âm lịch để xem nhanh hoặc chọn ngày"
           title="Nhấn để mở lịch Dương & Âm lịch"
-          className="flex items-center gap-2.5 px-3.5 py-1.5 bg-[#F4F8FF] dark:bg-slate-800 hover:bg-[#E4EEFF] dark:hover:bg-slate-700/80 text-left transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0D4EA6]"
+          className="flex items-center gap-2 px-3 bg-[#F4F8FF] dark:bg-slate-800 hover:bg-[#E4EEFF] dark:hover:bg-slate-700/80 text-left transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0D4EA6]"
         >
-          <CalendarDays className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400 shrink-0 hidden sm:block" aria-hidden="true" />
+          <CalendarDays className="w-3.5 h-3.5 text-[#0D4EA6] dark:text-sky-400 shrink-0 hidden sm:block" aria-hidden="true" />
           <div className="leading-tight">
-            <div className="text-xs font-extrabold text-[#083578] dark:text-slate-100 whitespace-nowrap">
+            <div className="text-[11.5px] font-extrabold text-[#083578] dark:text-slate-100 whitespace-nowrap">
               <span className="hidden sm:inline">{solarFull}</span>
               <span className="sm:hidden font-mono tabular-nums">{solarShort}</span>
             </div>
-            <div className="text-[11px] font-semibold text-[#334155] dark:text-sky-300 whitespace-nowrap mt-0.5 tabular-nums">
+            <div className="text-[10.5px] font-semibold text-[#334155] dark:text-sky-300 whitespace-nowrap tabular-nums">
               {lunarToday.fullText}
             </div>
           </div>

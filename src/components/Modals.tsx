@@ -1,5 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, FileDown, KeyRound, Printer, ShieldCheck, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  FileDown,
+  KeyRound,
+  Printer,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 
 interface ModalShellProps {
   open: boolean;
@@ -108,6 +117,80 @@ export const UncheckConfirmModal: React.FC<UncheckConfirmModalProps> = ({
               className="px-4 py-2 text-sm font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer"
             >
               Bỏ chọn ca
+            </button>
+          </div>
+        </div>
+      )}
+    </ModalShell>
+  );
+};
+
+/* ===== 1b. Xác nhận chọn nhanh ca chụp trống gần nhất (Phím T) ===== */
+interface QuickPickConfirmModalProps {
+  target: {
+    machineName: string;
+    stt: number;
+    sessionLabel: string;
+    startTime: string;
+    endTime: string;
+    relativeNote: string;
+  } | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+export const QuickPickConfirmModal: React.FC<QuickPickConfirmModalProps> = ({
+  target,
+  onCancel,
+  onConfirm,
+}) => {
+  const confirmBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!target) return;
+    const t = window.setTimeout(() => confirmBtnRef.current?.focus(), 20);
+    return () => window.clearTimeout(t);
+  }, [target]);
+
+  return (
+    <ModalShell
+      open={Boolean(target)}
+      title="Xác nhận chọn nhanh ca chụp"
+      subtitle="Giờ bắt đầu trống gần nhất với thời gian hiện tại (Phím tắt T)"
+      onClose={onCancel}
+    >
+      {target && (
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3.5 rounded-lg border border-[#93BCEB] bg-[#F2F7FF] dark:border-sky-800/70 dark:bg-sky-950/40">
+            <Clock3 className="w-5 h-5 text-[#0D4EA6] dark:text-sky-400 shrink-0 mt-0.5" />
+            <div className="text-sm font-medium leading-relaxed text-[#0F172A] dark:text-slate-200">
+              Bạn muốn chọn ca chụp khung giờ{' '}
+              <span className="font-mono font-extrabold tabular-nums text-[#083578] dark:text-sky-300">
+                {target.startTime} – {target.endTime}
+              </span>{' '}
+              (STT <span className="font-mono font-bold">{target.stt}</span> · {target.sessionLabel})
+              của máy <span className="font-bold">{target.machineName}</span>?
+              <div className="mt-1 text-xs font-semibold text-[#0D4EA6] dark:text-sky-300">
+                {target.relativeNote}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 text-sm font-semibold rounded-lg border border-[#C7D6E8] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#EEF4FB] dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              ref={confirmBtnRef}
+              type="button"
+              onClick={onConfirm}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-[#0D4EA6] hover:bg-[#083578] text-white transition-colors cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Xác nhận chọn</span>
             </button>
           </div>
         </div>

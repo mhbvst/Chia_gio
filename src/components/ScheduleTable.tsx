@@ -1,14 +1,44 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  CheckSquare,
   Clock3,
-  FileSpreadsheet,
   LocateFixed,
+  Minus,
   PictureInPicture2,
-  Printer,
+  Plus,
+  RotateCcw,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { MachineConfig, ScheduleRow } from '../data/schedules';
 import { countCheckedSlotsInRows, countTotalSlots } from '../utils/scheduleGenerator';
 import { formatDateDisplayVN, formatTimeVN, nowSecondsVN, parseHHMM } from '../utils/vnTime';
+
+export type TableRowSpacing = 'compact' | 'standard' | 'spacious';
+export type TableFontWeight = 400 | 500 | 600 | 700 | 800;
+
+export interface TableDisplaySettings {
+  rowSpacing: TableRowSpacing;
+  fontSize: number;
+  fontWeight: TableFontWeight;
+}
+
+export const DEFAULT_TABLE_DISPLAY_SETTINGS: TableDisplaySettings = {
+  rowSpacing: 'compact',
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+export interface ScheduleTableHandle {
+  jumpToNow: () => void;
+  scrollToSlot: (stt: number, session: 'm' | 'a') => void;
+}
 
 interface ScheduleTableProps {
   machine: MachineConfig;
@@ -16,7 +46,7 @@ interface ScheduleTableProps {
   isToday: boolean;
   isReadOnly: boolean;
   loading: boolean;
-  density: 'compact' | 'standard';
+  displaySettings: TableDisplaySettings;
   mobileSegment: 'morning' | 'afternoon';
   viewedDateKey: string;
   nowTick: number;
@@ -25,19 +55,19 @@ interface ScheduleTableProps {
   floatingClockOpen?: boolean;
   pendingSlots: Record<string, boolean>;
   onSlotClick: (row: ScheduleRow, session: 'm' | 'a', nextChecked: boolean) => void;
-  onPrint: () => void;
-  onCopy: (visibleRows: ScheduleRow[]) => void;
+  onChangeDisplaySettings: (next: TableDisplaySettings) => void;
   onSwitchMobileSegment?: (seg: 'morning' | 'afternoon') => void;
   onToggleFloatingClock?: () => void;
+  onRequestQuickPick?: () => void;
 }
 
-export const ScheduleTable: React.FC<ScheduleTableProps> = ({
+export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>(({
   machine,
   slots,
   isToday,
   isReadOnly,
   loading,
-  density,
+  displaySettings,
   mobileSegment,
   viewedDateKey,
   nowTick,
@@ -46,19 +76,39 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   floatingClockOpen = false,
   pendingSlots,
   onSlotClick,
-  onPrint,
-  onCopy,
+  onChangeDisplaySettings,
   onSwitchMobileSegment,
   onToggleFloatingClock,
-}) => {
+  onRequestQuickPick,
+}, ref) => {
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const cardShellRef = useRef<HTMLElement | null>(null);
   const theadRef = useRef<HTMLTableSectionElement | null>(null);
   const grpRowRef = useRef<HTMLTableRowElement | null>(null);
   const rowRefs = useRef<Record<number, HTMLTableRowElement | null>>({});
+  const displayMenuRef = useRef<HTMLDivElement | null>(null);
   const [grpHeight, setGrpHeight] = useState<number>(33);
   const [pendingScrollStt, setPendingScrollStt] = useState<number | null>(null);
   const [flashStt, setFlashStt] = useState<number | null>(null);
+  const [displayMenuOpen, setDisplayMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!displayMenuOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (displayMenuRef.current && !displayMenuRef.current.contains(e.target as Node)) {
+        setDisplayMenuOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDisplayMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [displayMenuOpen]);
 
   useEffect(() => {
     const grpEl = grpRowRef.current;
@@ -329,6 +379,30 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
     }
   };
 
+  const scrollToSlot = (stt: number, session: 'm' | 'a') => {
+    const targetSession = session === 'm' ? 'morning' : 'afternoon';
+    if (onSwitchMobileSegment && mobileSegment !== targetSession) {
+      onSwitchMobileSegment(targetSession);
+    }
+    if (rowRefs.current[stt]) {
+      scrollToRow(stt);
+    } else {
+      setPendingScrollStt(stt);
+    }
+  };
+
+  const imperativeHandlersRef = useRef({ handleJumpToNow, scrollToSlot });
+  imperativeHandlersRef.current = { handleJumpToNow, scrollToSlot };
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      jumpToNow: () => imperativeHandlersRef.current.handleJumpToNow(),
+      scrollToSlot: (stt, session) => imperativeHandlersRef.current.scrollToSlot(stt, session),
+    }),
+    []
+  );
+
   const totalSelectable = useMemo(() => countTotalSlots(rows), [rows]);
   const { morningCount, afternoonCount } = useMemo(() => {
     let mCnt = 0;
@@ -356,10 +430,44 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
     ? 'text-[#DC2626] dark:text-[#F87171]'
     : 'text-[#0F172A] dark:text-slate-50';
 
-  const cellPad = density === 'compact' ? 'py-1.5 px-2.5' : 'py-2.5 px-3';
-  const timeText = density === 'compact' ? 'text-[14px]' : 'text-[15.5px]';
+  const rowSpacingMeta =
+    displaySettings.rowSpacing === 'compact'
+      ? { py: 4, px: 10, minH: 30, lineHeight: 1.2, label: 'Gọn' }
+      : displaySettings.rowSpacing === 'spacious'
+      ? { py: 12, px: 14, minH: 48, lineHeight: 1.55, label: 'Thoáng' }
+      : { py: 8, px: 12, minH: 38, lineHeight: 1.35, label: 'Chuẩn' };
+
+  const clampedFontSize = Math.min(22, Math.max(12, Math.round(displaySettings.fontSize || 14)));
+  const activeFontWeight = displaySettings.fontWeight || 700;
+  const sttFontSize = Math.max(11, clampedFontSize - 1);
+
+  const cellBaseStyle: React.CSSProperties = {
+    paddingTop: `${rowSpacingMeta.py}px`,
+    paddingBottom: `${rowSpacingMeta.py}px`,
+    paddingLeft: `${rowSpacingMeta.px}px`,
+    paddingRight: `${rowSpacingMeta.px}px`,
+    fontSize: `${clampedFontSize}px`,
+    fontWeight: activeFontWeight,
+    lineHeight: rowSpacingMeta.lineHeight,
+  };
+
+  const sttCellStyle: React.CSSProperties = {
+    paddingTop: `${rowSpacingMeta.py}px`,
+    paddingBottom: `${rowSpacingMeta.py}px`,
+    paddingLeft: `${rowSpacingMeta.px}px`,
+    paddingRight: `${rowSpacingMeta.px}px`,
+    fontSize: `${sttFontSize}px`,
+    fontWeight: activeFontWeight,
+    lineHeight: rowSpacingMeta.lineHeight,
+  };
+
   const hideMorningMobile = mobileSegment === 'afternoon' ? 'hidden md:table-cell print-show-col' : '';
   const hideAfternoonMobile = mobileSegment === 'morning' ? 'hidden md:table-cell print-show-col' : '';
+
+  const isCustomDisplay =
+    displaySettings.rowSpacing !== DEFAULT_TABLE_DISPLAY_SETTINGS.rowSpacing ||
+    clampedFontSize !== DEFAULT_TABLE_DISPLAY_SETTINGS.fontSize ||
+    activeFontWeight !== DEFAULT_TABLE_DISPLAY_SETTINGS.fontWeight;
 
   return (
     <section
@@ -367,7 +475,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       id={machine.id}
       role="tabpanel"
       aria-label={machine.fullTitle}
-      className="print-card-shell bg-white dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800 rounded-xl overflow-hidden shadow-[0_2px_6px_rgba(8,53,120,0.06)]"
+      className="print-card-shell bg-white dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800 rounded-xl shadow-[0_2px_6px_rgba(8,53,120,0.06)]"
     >
       {/* Print-only hospital header */}
       <div className="hidden print-only px-4 pt-3 pb-2 border-b border-slate-400">
@@ -387,9 +495,9 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       </div>
 
       {/* Table toolbar header */}
-      <div className="no-print flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5 px-4 sm:px-5 py-3.5 border-b border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(8,53,120,0.04)]">
-        {/* Left: Machine identity + action controls */}
-        <div className="min-w-0 space-y-2.5">
+      <div className="no-print relative z-30 rounded-t-xl flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 px-4 sm:px-5 py-3 border-b border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900">
+        {/* Left: Machine identity + single-line action controls */}
+        <div className="min-w-0 space-y-2">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#334155] dark:text-slate-400">
               <span className="font-bold text-[#0D4EA6] dark:text-sky-400">Chẩn đoán hình ảnh</span>
@@ -405,7 +513,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 </span>
               </span>
             </div>
-            <h2 className="text-base sm:text-lg font-extrabold text-[#083578] dark:text-slate-100 mt-0.5 truncate">
+            <h2 className="text-base sm:text-[17px] font-extrabold tracking-tight text-[#083578] dark:text-slate-100 mt-0.5 truncate">
               {machine.fullTitle}
             </h2>
           </div>
@@ -415,41 +523,239 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
               <button
                 type="button"
                 onClick={handleJumpToNow}
-                title="Tự động cuộn tới vị trí thời gian hiện tại"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg border border-[#93BCEB] dark:border-sky-800 bg-[#DCEBFF] dark:bg-sky-950/50 text-[#083578] dark:text-sky-200 hover:bg-[#C6DFFF] dark:hover:bg-sky-900/60 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                title="Tự động cuộn tới vị trí thời gian hiện tại (Phím G)"
+                className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-bold rounded-lg border border-[#93BCEB] dark:border-sky-800 bg-[#DCEBFF] dark:bg-sky-950/50 text-[#083578] dark:text-sky-200 hover:bg-[#C6DFFF] dark:hover:bg-sky-900/60 transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                <LocateFixed className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400" />
+                <LocateFixed className="w-3.5 h-3.5 text-[#0D4EA6] dark:text-sky-400 shrink-0" />
                 <span>Tới ca hiện tại</span>
+                <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-extrabold leading-none rounded border border-[#93BCEB] dark:border-sky-700 bg-white/90 dark:bg-sky-900/70 text-[#083578] dark:text-sky-200">
+                  G
+                </kbd>
               </button>
             )}
-            <button
-              type="button"
-              onClick={onPrint}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#EEF4FB] dark:hover:bg-slate-700/70 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Printer className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400" />
-              <span>In / PDF</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onCopy(rows)}
-              style={{ backgroundColor: 'var(--accent-500)' }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg text-white hover:opacity-95 transition-opacity cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Xuất Excel</span>
-            </button>
+            {isToday && !isReadOnly && !loading && onRequestQuickPick && (
+              <button
+                type="button"
+                onClick={onRequestQuickPick}
+                title="Chọn nhanh thời gian bắt đầu trống gần nhất với thời gian hiện tại (Phím T)"
+                className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-bold rounded-lg border border-[#86EFAC] dark:border-emerald-800 bg-[#ECFDF5] dark:bg-emerald-950/45 text-[#047857] dark:text-emerald-200 hover:bg-[#D1FAE5] dark:hover:bg-emerald-900/50 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-[#059669] dark:text-emerald-400 shrink-0" />
+                <span>Chọn nhanh trống</span>
+                <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-extrabold leading-none rounded border border-[#86EFAC] dark:border-emerald-700 bg-white/90 dark:bg-emerald-900/60 text-[#047857] dark:text-emerald-200">
+                  T
+                </kbd>
+              </button>
+            )}
+
+            {/* Display Settings Popover Control */}
+            <div className="relative" ref={displayMenuRef}>
+              <button
+                type="button"
+                onClick={() => setDisplayMenuOpen((o) => !o)}
+                aria-expanded={displayMenuOpen}
+                aria-haspopup="dialog"
+                title={`Điều chỉnh hiển thị (${rowSpacingMeta.label} · ${clampedFontSize}px · ${activeFontWeight})`}
+                className={`inline-flex items-center gap-1.5 h-9 px-3 text-xs font-bold rounded-lg border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  displayMenuOpen || isCustomDisplay
+                    ? 'border-[#0D4EA6] dark:border-sky-500 bg-[#EEF5FF] dark:bg-sky-950/60 text-[#083578] dark:text-sky-200'
+                    : 'border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#EEF4FB] dark:hover:bg-slate-700/70'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#0D4EA6] dark:text-sky-400 shrink-0" />
+                <span>Cài đặt hiển thị</span>
+                {isCustomDisplay && (
+                  <span className="font-mono text-[10.5px] font-bold tabular-nums text-[#0D4EA6] dark:text-sky-300">
+                    ({clampedFontSize}px)
+                  </span>
+                )}
+              </button>
+
+              {displayMenuOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Cài đặt hiển thị bảng lịch"
+                  className="absolute left-0 sm:left-auto sm:right-0 xl:left-0 xl:right-auto mt-2 w-[min(336px,calc(100vw-2rem))] rounded-xl border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4 z-50 space-y-4"
+                >
+                  <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[#E2ECF7] dark:border-slate-800">
+                    <div>
+                      <div className="text-sm font-extrabold text-[#083578] dark:text-slate-100">
+                        Cài đặt hiển thị
+                      </div>
+                      <div className="text-[11px] font-medium text-[#475569] dark:text-slate-400">
+                        Áp dụng trực tiếp lên bảng lịch chụp
+                      </div>
+                    </div>
+                    {isCustomDisplay && (
+                      <button
+                        type="button"
+                        onClick={() => onChangeDisplaySettings(DEFAULT_TABLE_DISPLAY_SETTINGS)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold text-[#0D4EA6] dark:text-sky-300 hover:bg-[#EEF4FB] dark:hover:bg-slate-800 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Mặc định</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 1. Độ giãn dòng */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-[#0F172A] dark:text-slate-200">
+                        Độ giãn dòng
+                      </span>
+                      <span className="font-mono font-bold text-[#0D4EA6] dark:text-sky-300 tabular-nums">
+                        {rowSpacingMeta.label}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-[#EEF4FB] dark:bg-slate-800 border border-[#C7D6E8] dark:border-slate-700">
+                      {(
+                        [
+                          { id: 'compact', label: 'Gọn' },
+                          { id: 'standard', label: 'Chuẩn' },
+                          { id: 'spacious', label: 'Thoáng' },
+                        ] as const
+                      ).map((opt) => {
+                        const active = displaySettings.rowSpacing === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() =>
+                              onChangeDisplaySettings({
+                                ...displaySettings,
+                                rowSpacing: opt.id,
+                              })
+                            }
+                            aria-pressed={active}
+                            className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                              active
+                                ? 'bg-[#0D4EA6] text-white shadow-xs'
+                                : 'text-[#334155] dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 2. Kích thước chữ */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-[#0F172A] dark:text-slate-200">
+                        Kích thước chữ
+                      </span>
+                      <span className="font-mono font-extrabold text-[#0D4EA6] dark:text-sky-300 tabular-nums">
+                        {clampedFontSize}px
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChangeDisplaySettings({
+                            ...displaySettings,
+                            fontSize: Math.max(12, clampedFontSize - 1),
+                          })
+                        }
+                        disabled={clampedFontSize <= 12}
+                        aria-label="Giảm kích thước chữ"
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#C7D6E8] dark:border-slate-700 bg-[#F8FBFF] dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#DCEBFF] dark:hover:bg-slate-700 disabled:opacity-40 cursor-pointer shrink-0"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <input
+                        type="range"
+                        min={12}
+                        max={22}
+                        step={1}
+                        value={clampedFontSize}
+                        onChange={(e) =>
+                          onChangeDisplaySettings({
+                            ...displaySettings,
+                            fontSize: Number(e.target.value),
+                          })
+                        }
+                        aria-label="Thanh trượt kích thước chữ"
+                        className="flex-1 accent-[#0D4EA6] dark:accent-sky-400 cursor-pointer"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChangeDisplaySettings({
+                            ...displaySettings,
+                            fontSize: Math.min(22, clampedFontSize + 1),
+                          })
+                        }
+                        disabled={clampedFontSize >= 22}
+                        aria-label="Tăng kích thước chữ"
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#C7D6E8] dark:border-slate-700 bg-[#F8FBFF] dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#DCEBFF] dark:hover:bg-slate-700 disabled:opacity-40 cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. Độ đậm của ký tự */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-[#0F172A] dark:text-slate-200">
+                        Độ đậm ký tự
+                      </span>
+                      <span className="font-mono font-bold text-[#0D4EA6] dark:text-sky-300 tabular-nums">
+                        {activeFontWeight}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 p-1 rounded-lg bg-[#EEF4FB] dark:bg-slate-800 border border-[#C7D6E8] dark:border-slate-700">
+                      {(
+                        [
+                          { val: 400, label: 'Thường' },
+                          { val: 500, label: 'Vừa' },
+                          { val: 700, label: 'Đậm' },
+                          { val: 800, label: 'Rất đậm' },
+                        ] as const
+                      ).map((opt) => {
+                        const active = activeFontWeight === opt.val;
+                        return (
+                          <button
+                            key={opt.val}
+                            type="button"
+                            onClick={() =>
+                              onChangeDisplaySettings({
+                                ...displaySettings,
+                                fontWeight: opt.val,
+                              })
+                            }
+                            aria-pressed={active}
+                            style={{ fontWeight: opt.val }}
+                            className={`px-2 py-1.5 rounded-md text-xs transition-colors cursor-pointer whitespace-nowrap ${
+                              active
+                                ? 'bg-[#0D4EA6] text-white shadow-xs'
+                                : 'text-[#334155] dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Right: Enlarged modern clinical dual-time console (hidden when floating clock is open) */}
+        {/* Right: Balanced clinical dual-time console (hidden when floating clock is open) */}
         {!floatingClockOpen ? (
           <div
-            className="lg:ml-auto shrink-0 rounded-2xl border border-[#B6CBE3] dark:border-slate-800 bg-white dark:bg-[#0B1220] shadow-[0_6px_18px_-6px_rgba(8,53,120,0.12)] dark:shadow-[0_8px_24px_-6px_rgba(8,53,120,0.34)] overflow-hidden"
+            className="xl:ml-auto shrink-0 rounded-lg border border-[#C7D6E8] dark:border-slate-700/80 bg-white dark:bg-[#0B1220] shadow-[0_2px_8px_rgba(8,53,120,0.08)] dark:shadow-[0_4px_16px_rgba(2,6,23,0.4)] overflow-hidden"
             title="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực (Giờ Việt Nam)"
             aria-label="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực"
           >
-            <div className="flex items-center justify-between gap-4 px-4 sm:px-5 py-2 border-b border-[#C7D6E8] dark:border-slate-800/90 bg-[#E8F1FC] dark:bg-[#111A2E]">
+            <div className="flex items-center justify-between gap-4 px-4 py-1.5 border-b border-[#C7D6E8] dark:border-slate-800/90 bg-[#E8F1FC] dark:bg-[#111A2E]">
               <div className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-[#083578] dark:text-slate-300 uppercase whitespace-nowrap">
                 <Clock3 className="w-3.5 h-3.5 text-[#0D4EA6] dark:text-[#38BDF8] shrink-0" aria-hidden="true" />
                 <span>Đồng hồ ca chụp</span>
@@ -459,32 +765,35 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   type="button"
                   onClick={onToggleFloatingClock}
                   aria-pressed={false}
-                  title="Chuyển đồng hồ thành cửa sổ nổi luôn hiển thị"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border border-[#93BCEB] dark:border-sky-400/35 bg-white dark:bg-sky-500/15 hover:bg-[#DCEBFF] dark:hover:bg-sky-500/25 text-[#083578] dark:text-sky-300 transition-colors cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                  title="Chuyển đồng hồ thành cửa sổ nổi luôn hiển thị (Phím H)"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11.5px] font-bold border border-[#93BCEB] dark:border-sky-400/35 bg-white dark:bg-sky-500/15 hover:bg-[#DCEBFF] dark:hover:bg-sky-500/25 text-[#083578] dark:text-sky-300 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <PictureInPicture2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                   <span>Đồng hồ nổi</span>
+                  <kbd className="hidden sm:inline-flex items-center justify-center px-1 py-0.5 text-[9.5px] font-mono font-extrabold leading-none rounded border border-[#93BCEB] dark:border-sky-400/40 bg-[#F4F8FF] dark:bg-slate-900/70 text-[#083578] dark:text-sky-200">
+                    H
+                  </kbd>
                 </button>
               )}
             </div>
 
             <div className="grid grid-cols-2 divide-x divide-[#C7D6E8] dark:divide-slate-800">
-              <div className="px-5 sm:px-6 py-3.5 sm:py-4 flex flex-col justify-center min-w-[160px] sm:min-w-[196px] bg-white dark:bg-transparent">
-                <div className="text-xs font-semibold text-[#475569] dark:text-slate-400 whitespace-nowrap">
+              <div className="px-4 sm:px-5 py-2.5 sm:py-3 flex flex-col justify-center min-w-[146px] sm:min-w-[170px] bg-white dark:bg-transparent">
+                <div className="text-[11.5px] font-semibold text-[#475569] dark:text-slate-400 whitespace-nowrap">
                   Đã chọn sau cùng
                 </div>
                 <div
-                  className={`mt-1.5 font-mono text-[32px] sm:text-[38px] xl:text-[42px] leading-none font-extrabold tabular-nums tracking-tight ${lastPickColorClass}`}
+                  className={`mt-1 font-mono text-[28px] sm:text-[34px] xl:text-[38px] leading-none font-extrabold tabular-nums tracking-tight ${lastPickColorClass}`}
                 >
                   {lastPickedStart || '--:--'}
                 </div>
               </div>
 
-              <div className="px-5 sm:px-6 py-3.5 sm:py-4 flex flex-col justify-center min-w-[186px] sm:min-w-[232px] bg-[#F2F7FF] dark:bg-slate-900/55">
-                <div className="text-xs font-semibold text-[#0D4EA6] dark:text-sky-300/90 whitespace-nowrap">
+              <div className="px-4 sm:px-5 py-2.5 sm:py-3 flex flex-col justify-center min-w-[172px] sm:min-w-[208px] bg-[#F4F8FF] dark:bg-slate-900/55">
+                <div className="text-[11.5px] font-semibold text-[#0D4EA6] dark:text-sky-300/90 whitespace-nowrap">
                   Giờ hiện tại (VN)
                 </div>
-                <div className="mt-1.5 font-mono text-[32px] sm:text-[38px] xl:text-[42px] leading-none font-extrabold tabular-nums tracking-tight text-[#083578] dark:text-[#38BDF8]">
+                <div className="mt-1 font-mono text-[28px] sm:text-[34px] xl:text-[38px] leading-none font-extrabold tabular-nums tracking-tight text-[#083578] dark:text-[#38BDF8]">
                   {liveClockVN}
                 </div>
               </div>
@@ -496,11 +805,14 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
               type="button"
               onClick={onToggleFloatingClock}
               aria-pressed={true}
-              title="Đóng cửa sổ đồng hồ nổi và hiện lại đồng hồ gốc"
-              className="lg:ml-auto self-start lg:self-center shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer whitespace-nowrap"
+              title="Đóng cửa sổ đồng hồ nổi và hiện lại đồng hồ gốc (Phím H)"
+              className="xl:ml-auto self-start xl:self-center shrink-0 inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer whitespace-nowrap"
             >
               <PictureInPicture2 className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>Đóng đồng hồ nổi · Hiện đồng hồ</span>
+              <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-extrabold leading-none rounded border border-emerald-300 dark:border-emerald-700 bg-white/85 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                H
+              </kbd>
             </button>
           )
         )}
@@ -510,8 +822,8 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       <div
         ref={tableScrollRef}
         className={`print-table-wrap dual-scroll ${
-          floatingClockOpen ? 'h-[calc(100dvh-212px)]' : 'h-[calc(100dvh-248px)]'
-        } min-h-[340px] max-h-[760px] overflow-y-auto overflow-x-auto bg-white dark:bg-slate-900`}
+          floatingClockOpen ? 'h-[calc(100dvh-184px)]' : 'h-[calc(100dvh-220px)]'
+        } ${rows.length === 0 || loading ? 'rounded-b-xl' : ''} min-h-[360px] max-h-[820px] overflow-y-auto overflow-x-auto bg-white dark:bg-slate-900`}
       >
         {loading ? (
           <div className="p-4 space-y-2" aria-busy="true" aria-label="Đang tải dữ liệu lịch chụp">
@@ -541,14 +853,14 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 <th
                   rowSpan={2}
                   style={{ top: 0 }}
-                  className="sticky z-20 bg-[#DCEBFF] dark:bg-slate-800 text-[#083578] dark:text-slate-200 text-xs font-extrabold uppercase tracking-wider px-3 py-2.5 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center"
+                  className="sticky z-20 bg-[#DCEBFF] dark:bg-slate-800 text-[#083578] dark:text-slate-200 text-xs font-extrabold uppercase tracking-wider px-3 py-2.5 border-b border-r-2 border-r-[#94B0CE] border-b-[#B6CBE3] dark:border-b-slate-700 dark:border-r-slate-700 text-center"
                 >
                   STT
                 </th>
                 <th
                   colSpan={3}
                   style={{ top: 0 }}
-                  className={`sticky z-20 bg-[#D0E4FF] dark:bg-sky-950 text-[#083578] dark:text-sky-200 text-xs leading-4 font-extrabold uppercase tracking-wider px-3 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center ${hideMorningMobile}`}
+                  className={`sticky z-20 bg-[#D0E4FF] dark:bg-sky-950 text-[#083578] dark:text-sky-200 text-xs leading-4 font-extrabold uppercase tracking-wider px-3 py-2 border-b border-r-2 border-r-[#94B0CE] border-b-[#B6CBE3] dark:border-b-slate-700 dark:border-r-slate-700 text-center ${hideMorningMobile}`}
                 >
                   BUỔI SÁNG
                 </th>
@@ -575,7 +887,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 </th>
                 <th
                   style={{ top: grpHeight }}
-                  className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
+                  className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r-2 border-r-[#94B0CE] border-b-[#B6CBE3] dark:border-b-slate-800 dark:border-r-slate-700 text-center ${hideMorningMobile}`}
                 >
                   Chọn
                 </th>
@@ -639,7 +951,8 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                   >
                     {/* STT */}
                     <td
-                      className={`${cellPad} border-b border-r border-[#C7D6E8] dark:border-slate-800 text-center font-mono text-xs sm:text-sm font-extrabold text-[#083578] dark:text-slate-300 bg-[#EEF4FB]/70 dark:bg-slate-900 tabular-nums`}
+                      style={sttCellStyle}
+                      className="border-b border-r-2 border-b-[#C7D6E8] border-r-[#94B0CE] dark:border-b-slate-800 dark:border-r-slate-700 text-center font-mono text-[#083578] dark:text-slate-300 bg-[#EEF4FB]/70 dark:bg-slate-900/90 tabular-nums"
                     >
                       {row.stt}
                     </td>
@@ -648,22 +961,22 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     <td
                       data-selected={mChecked ? 'true' : undefined}
                       data-now={isMNow ? 'true' : undefined}
-                      style={mChecked ? selectedCellStyle : undefined}
-                      className={`xq-m-cell xq-m-start ${cellPad} ${timeText} ${hideMorningMobile} time-cell border-b border-r border-[#C7D6E8] dark:border-slate-800/80 text-center font-extrabold text-[#0F172A] dark:text-slate-100 relative ${
+                      style={mChecked ? { ...cellBaseStyle, ...selectedCellStyle } : cellBaseStyle}
+                      className={`xq-m-cell xq-m-start ${hideMorningMobile} time-cell border-b border-r border-[#C7D6E8] dark:border-slate-800/80 text-center text-[#0F172A] dark:text-slate-100 relative ${
                         isMNow
                           ? 'ring-2 ring-inset ring-amber-500/85 bg-amber-50/90 dark:bg-amber-950/35'
                           : ''
                       }`}
                     >
                       {hasMorning ? (
-                        <>
+                        <span className="inline-flex items-center justify-center gap-1.5">
                           <span>{row.morningStart}</span>
                           {isMNow && (
-                            <span className="ml-1.5 inline-block text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200 align-middle">
+                            <span className="inline-block text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700/70 bg-amber-100 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200 leading-none">
                               HIỆN TẠI
                             </span>
                           )}
-                        </>
+                        </span>
                       ) : (
                         <span className="text-[#94A3B8] dark:text-slate-600 font-medium">—</span>
                       )}
@@ -672,8 +985,8 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     {/* SÁNG: Kết thúc */}
                     <td
                       data-selected={mChecked ? 'true' : undefined}
-                      style={mChecked ? selectedCellStyle : undefined}
-                      className={`xq-m-cell ${cellPad} ${timeText} ${hideMorningMobile} time-cell border-b border-r border-[#C7D6E8] dark:border-slate-800/80 text-center font-bold text-[#1E293B] dark:text-slate-300`}
+                      style={mChecked ? { ...cellBaseStyle, ...selectedCellStyle } : cellBaseStyle}
+                      className={`xq-m-cell ${hideMorningMobile} time-cell border-b border-r border-[#C7D6E8] dark:border-slate-800/80 text-center text-[#1E293B] dark:text-slate-300`}
                     >
                       {hasMorning ? (
                         row.morningEnd
@@ -686,10 +999,13 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     <td
                       data-selected={mChecked ? 'true' : undefined}
                       style={mChecked ? selectedCellStyle : undefined}
-                      className={`xq-m-cell xq-m-pick ${hideMorningMobile} border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center p-0`}
+                      className={`xq-m-cell xq-m-pick ${hideMorningMobile} border-b border-r-2 border-b-[#C7D6E8] border-r-[#94B0CE] dark:border-b-slate-800 dark:border-r-slate-700 text-center p-0`}
                     >
                       {hasMorning ? (
-                        <label className="flex items-center justify-center w-full h-full min-h-[40px] cursor-pointer">
+                        <label
+                          style={{ minHeight: `${rowSpacingMeta.minH}px` }}
+                          className="flex items-center justify-center w-full h-full cursor-pointer"
+                        >
                           <input
                             type="checkbox"
                             className="xq-checkbox"
@@ -700,7 +1016,10 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                           />
                         </label>
                       ) : (
-                        <div className="flex items-center justify-center min-h-[40px] text-xs text-[#94A3B8] dark:text-slate-600">
+                        <div
+                          style={{ minHeight: `${rowSpacingMeta.minH}px` }}
+                          className="flex items-center justify-center text-xs text-[#94A3B8] dark:text-slate-600"
+                        >
                           —
                         </div>
                       )}
@@ -710,24 +1029,22 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     <td
                       data-selected={aChecked ? 'true' : undefined}
                       data-now={isANow ? 'true' : undefined}
-                      style={aChecked ? selectedCellStyle : undefined}
-                      className={`xq-a-cell xq-a-start ${cellPad} ${timeText} ${hideAfternoonMobile} time-cell border-b border-r border-[#C7D6E8] dark:border-slate-800/80 text-center font-extrabold text-[#0F172A] dark:text-slate-100 relative ${
-                        !aChecked && !isFlashed ? 'bg-[#F7FAFE] dark:bg-slate-900' : ''
-                      } ${
+                      style={aChecked ? { ...cellBaseStyle, ...selectedCellStyle } : cellBaseStyle}
+                      className={`xq-a-cell xq-a-start ${hideAfternoonMobile} time-cell border-b border-r border-[#C7D6E8] dark:border-slate-800/80 text-center text-[#0F172A] dark:text-slate-100 relative ${
                         isANow
                           ? 'ring-2 ring-inset ring-amber-500/85 bg-amber-50/90 dark:bg-amber-950/35'
                           : ''
                       }`}
                     >
                       {hasAfternoon ? (
-                        <>
+                        <span className="inline-flex items-center justify-center gap-1.5">
                           <span>{row.afternoonStart}</span>
                           {isANow && (
-                            <span className="ml-1.5 inline-block text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200 align-middle">
+                            <span className="inline-block text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700/70 bg-amber-100 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200 leading-none">
                               HIỆN TẠI
                             </span>
                           )}
-                        </>
+                        </span>
                       ) : (
                         <span className="text-[#94A3B8] dark:text-slate-600 font-medium">—</span>
                       )}
@@ -736,10 +1053,8 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     {/* CHIỀU: Kết thúc */}
                     <td
                       data-selected={aChecked ? 'true' : undefined}
-                      style={aChecked ? selectedCellStyle : undefined}
-                      className={`xq-a-cell ${cellPad} ${timeText} ${hideAfternoonMobile} time-cell border-b border-r border-[#C7D6E8] dark:border-slate-800/80 text-center font-bold text-[#1E293B] dark:text-slate-300 ${
-                        !aChecked && !isFlashed ? 'bg-[#F7FAFE] dark:bg-slate-900' : ''
-                      }`}
+                      style={aChecked ? { ...cellBaseStyle, ...selectedCellStyle } : cellBaseStyle}
+                      className={`xq-a-cell ${hideAfternoonMobile} time-cell border-b border-r border-[#C7D6E8] dark:border-slate-800/80 text-center text-[#1E293B] dark:text-slate-300`}
                     >
                       {hasAfternoon ? (
                         row.afternoonEnd
@@ -752,12 +1067,13 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     <td
                       data-selected={aChecked ? 'true' : undefined}
                       style={aChecked ? selectedCellStyle : undefined}
-                      className={`xq-a-cell xq-a-pick ${hideAfternoonMobile} border-b border-[#C7D6E8] dark:border-slate-800 text-center p-0 ${
-                        !aChecked && !isFlashed ? 'bg-[#F7FAFE] dark:bg-slate-900' : ''
-                      }`}
+                      className={`xq-a-cell xq-a-pick ${hideAfternoonMobile} border-b border-[#C7D6E8] dark:border-slate-800 text-center p-0`}
                     >
                       {hasAfternoon ? (
-                        <label className="flex items-center justify-center w-full h-full min-h-[40px] cursor-pointer">
+                        <label
+                          style={{ minHeight: `${rowSpacingMeta.minH}px` }}
+                          className="flex items-center justify-center w-full h-full cursor-pointer"
+                        >
                           <input
                             type="checkbox"
                             className="xq-checkbox"
@@ -768,7 +1084,10 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                           />
                         </label>
                       ) : (
-                        <div className="flex items-center justify-center min-h-[40px] text-xs text-[#94A3B8] dark:text-slate-600">
+                        <div
+                          style={{ minHeight: `${rowSpacingMeta.minH}px` }}
+                          className="flex items-center justify-center text-xs text-[#94A3B8] dark:text-slate-600"
+                        >
                           —
                         </div>
                       )}
@@ -783,7 +1102,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
 
       {/* Single-page table summary footer */}
       {!loading && rows.length > 0 && (
-        <div className="no-print flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-2.5 border-t border-[#C7D6E8] dark:border-slate-800 bg-[#EEF4FB]/80 dark:bg-slate-900/80 text-xs font-semibold text-[#334155] dark:text-slate-400">
+        <div className="no-print rounded-b-xl flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-2.5 border-t border-[#C7D6E8] dark:border-slate-800 bg-[#EEF4FB]/80 dark:bg-slate-900/80 text-xs font-semibold text-[#334155] dark:text-slate-400">
           <span>
             Hiển thị{' '}
             <strong className="md:hidden font-mono tabular-nums text-[#0F172A] dark:text-slate-200">
@@ -801,4 +1120,6 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       )}
     </section>
   );
-};
+});
+
+ScheduleTable.displayName = 'ScheduleTable';

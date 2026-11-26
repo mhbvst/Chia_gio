@@ -4,6 +4,8 @@ import {
   AlertTriangle,
   Calendar,
   CalendarCheck,
+  ChevronLeft,
+  ChevronRight,
   FileSpreadsheet,
   Lock,
   Menu,
@@ -11,10 +13,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Printer,
-  Rows3,
   Settings,
   ShieldAlert,
-  UserCheck,
   X,
 } from 'lucide-react';
 import radiologyBannerImg from './assets/images/xray_department_banner_1795454558629.jpg';
@@ -58,11 +58,19 @@ import {
   ScheduleSettings,
 } from './utils/scheduleGenerator';
 import { ClockWidget } from './components/ClockWidget';
-import { ScheduleTable } from './components/ScheduleTable';
+import {
+  DEFAULT_TABLE_DISPLAY_SETTINGS,
+  ScheduleTable,
+  ScheduleTableHandle,
+  TableDisplaySettings,
+  TableFontWeight,
+  TableRowSpacing,
+} from './components/ScheduleTable';
 import {
   AuthModal,
   ChangePasswordModal,
   PrintPdfModal,
+  QuickPickConfirmModal,
   UncheckConfirmModal,
 } from './components/Modals';
 import { ScheduleSettingsModal } from './components/ScheduleSettingsModal';
@@ -76,6 +84,7 @@ import { exportSchedulePdf } from './utils/pdfExport';
 
 const LOCK_STORAGE_KEY = 'xq_locked_machine';
 const DENSITY_STORAGE_KEY = 'xq_density_mode';
+const DISPLAY_SETTINGS_STORAGE_KEY = 'xq_display_settings_v1';
 const MOBILE_SEG_STORAGE_KEY = 'xq_mobile_segment';
 const SIDEBAR_STORAGE_KEY = 'xq_sidebar_collapsed';
 const SETTINGS_STORAGE_KEY = 'xq_schedule_settings_v1';
@@ -83,6 +92,26 @@ const PICK_ORDER_STORAGE_KEY = 'xq_pick_order_v1';
 
 function themeStorageKey(mk: MachineKey): string {
   return `xq_v2_theme__${mk}`;
+}
+
+function getInitials(name: string): string {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return 'NV';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function shiftDateKey(dateKey: string, deltaDays: number): string {
+  const m = String(dateKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return dateKey;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + deltaDays));
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
 }
 
 export default function App() {
@@ -138,9 +167,38 @@ export default function App() {
   const [pendingSlots, setPendingSlots] = useState<Record<string, boolean>>({});
 
   // ===== UI preferences =====
-  const [density, setDensity] = useState<'compact' | 'standard'>(() =>
-    localStorage.getItem(DENSITY_STORAGE_KEY) === 'standard' ? 'standard' : 'compact'
-  );
+  const [displaySettings, setDisplaySettings] = useState<TableDisplaySettings>(() => {
+    try {
+      const raw = localStorage.getItem(DISPLAY_SETTINGS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<TableDisplaySettings>;
+        const rs: TableRowSpacing =
+          parsed.rowSpacing === 'standard' || parsed.rowSpacing === 'spacious'
+            ? parsed.rowSpacing
+            : 'compact';
+        const fsNum = Number(parsed.fontSize);
+        const fontSize = Number.isFinite(fsNum)
+          ? Math.min(22, Math.max(12, Math.round(fsNum)))
+          : DEFAULT_TABLE_DISPLAY_SETTINGS.fontSize;
+        const fwNum = Number(parsed.fontWeight);
+        const fontWeight: TableFontWeight =
+          fwNum === 400 || fwNum === 500 || fwNum === 600 || fwNum === 700 || fwNum === 800
+            ? fwNum
+            : DEFAULT_TABLE_DISPLAY_SETTINGS.fontWeight;
+        return { rowSpacing: rs, fontSize, fontWeight };
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    const legacyDensity = localStorage.getItem(DENSITY_STORAGE_KEY);
+    const rowSpacing: TableRowSpacing =
+      legacyDensity === 'standard' || legacyDensity === 'spacious' ? legacyDensity : 'compact';
+    return {
+      ...DEFAULT_TABLE_DISPLAY_SETTINGS,
+      rowSpacing,
+      fontSize: rowSpacing === 'standard' ? 15 : DEFAULT_TABLE_DISPLAY_SETTINGS.fontSize,
+    };
+  });
   const [mobileSegment, setMobileSegment] = useState<'morning' | 'afternoon'>(() =>
     localStorage.getItem(MOBILE_SEG_STORAGE_KEY) === 'afternoon' ? 'afternoon' : 'morning'
   );
@@ -191,12 +249,21 @@ export default function App() {
     row: ScheduleRow;
     session: 'm' | 'a';
   } | null>(null);
+  const [quickPickTarget, setQuickPickTarget] = useState<{
+    row: ScheduleRow;
+    session: 'm' | 'a';
+    sessionLabel: string;
+    startTime: string;
+    endTime: string;
+    relativeNote: string;
+  } | null>(null);
 
   // ===== Toasts =====
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastIdRef = useRef(1);
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const scheduleAreaRef = useRef<HTMLDivElement>(null);
+  const scheduleTableRef = useRef<ScheduleTableHandle | null>(null);
   const pipClockRef = useRef<MultitaskingClockPipHandle | null>(null);
   const [floatingClockOpen, setFloatingClockOpen] = useState(false);
 
@@ -616,6 +683,178 @@ export default function App() {
     void commitSlotToggle(row, session, true);
   };
 
+  const handleRequestQuickPick = useCallback(() => {
+    if (!isToday || isReadOnly) {
+      pushToast('info', 'Phím tắt [T] chỉ hỗ trợ chọn nhanh khi đang xem lịch ngày hôm nay.');
+      return;
+    }
+    if (loadingStates) return;
+
+    const nowSec = nowSecondsVN();
+    let best: {
+      row: ScheduleRow;
+      session: 'm' | 'a';
+      startTime: string;
+      endTime: string;
+      diffSec: number;
+      absDiff: number;
+    } | null = null;
+
+    for (const row of activeMachineConfig.rows) {
+      if (row.morningStart) {
+        const key = `m:${row.stt}`;
+        if (!activeSlots[key] && !pendingSlots[key]) {
+          const min = parseHHMM(row.morningStart);
+          if (min !== null) {
+            const diffSec = min * 60 - nowSec;
+            const absDiff = Math.abs(diffSec);
+            if (
+              !best ||
+              absDiff < best.absDiff ||
+              (absDiff === best.absDiff && diffSec >= 0 && best.diffSec < 0)
+            ) {
+              best = {
+                row,
+                session: 'm',
+                startTime: row.morningStart,
+                endTime: row.morningEnd,
+                diffSec,
+                absDiff,
+              };
+            }
+          }
+        }
+      }
+      if (row.afternoonStart) {
+        const key = `a:${row.stt}`;
+        if (!activeSlots[key] && !pendingSlots[key]) {
+          const min = parseHHMM(row.afternoonStart);
+          if (min !== null) {
+            const diffSec = min * 60 - nowSec;
+            const absDiff = Math.abs(diffSec);
+            if (
+              !best ||
+              absDiff < best.absDiff ||
+              (absDiff === best.absDiff && diffSec >= 0 && best.diffSec < 0)
+            ) {
+              best = {
+                row,
+                session: 'a',
+                startTime: row.afternoonStart,
+                endTime: row.afternoonEnd,
+                diffSec,
+                absDiff,
+              };
+            }
+          }
+        }
+      }
+    }
+
+    if (!best) {
+      pushToast(
+        'info',
+        `Tất cả khung giờ hôm nay của máy ${activeMachineConfig.name} đều đã được chọn.`
+      );
+      return;
+    }
+
+    let relativeNote = 'Trùng thời gian hiện tại';
+    if (best.diffSec > 60) {
+      relativeNote = `Còn khoảng ${Math.round(best.diffSec / 60)} phút nữa so với hiện tại`;
+    } else if (best.diffSec > 0) {
+      relativeNote = `Còn ${best.diffSec} giây nữa so với hiện tại`;
+    } else if (best.diffSec < -60) {
+      relativeNote = `Đã qua khoảng ${Math.round(Math.abs(best.diffSec) / 60)} phút so với hiện tại`;
+    } else if (best.diffSec < 0) {
+      relativeNote = `Đã qua ${Math.abs(best.diffSec)} giây so với hiện tại`;
+    }
+
+    setQuickPickTarget({
+      row: best.row,
+      session: best.session,
+      sessionLabel: best.session === 'm' ? 'Ca Sáng' : 'Ca Chiều',
+      startTime: best.startTime,
+      endTime: best.endTime,
+      relativeNote,
+    });
+  }, [
+    isToday,
+    isReadOnly,
+    loadingStates,
+    activeMachineConfig.rows,
+    activeMachineConfig.name,
+    activeSlots,
+    pendingSlots,
+    pushToast,
+  ]);
+
+  const shortcutHandlersRef = useRef({
+    onJumpNow: () => {
+      if (!isToday) {
+        pushToast('info', 'Phím tắt [G] chỉ hỗ trợ cuộn tới ca hiện tại khi xem ngày hôm nay.');
+        return;
+      }
+      if (!loadingStates) scheduleTableRef.current?.jumpToNow();
+    },
+    onQuickPick: handleRequestQuickPick,
+    onToggleFloating: () => pipClockRef.current?.toggle(),
+  });
+  shortcutHandlersRef.current = {
+    onJumpNow: () => {
+      if (!isToday) {
+        pushToast('info', 'Phím tắt [G] chỉ hỗ trợ cuộn tới ca hiện tại khi xem ngày hôm nay.');
+        return;
+      }
+      if (!loadingStates) scheduleTableRef.current?.jumpToNow();
+    },
+    onQuickPick: handleRequestQuickPick,
+    onToggleFloating: () => pipClockRef.current?.toggle(),
+  };
+
+  const hasOpenModal =
+    authModalMode !== null ||
+    changePwdModalOpen ||
+    printModalOpen ||
+    settingsModalOpen ||
+    uncheckTarget !== null ||
+    quickPickTarget !== null;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (hasOpenModal) return;
+
+      const active = document.activeElement as HTMLElement | null;
+      if (active) {
+        if (active.isContentEditable) return;
+        const tag = active.tagName;
+        if (tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (tag === 'INPUT') {
+          const inpType = (active as HTMLInputElement).type;
+          if (inpType !== 'checkbox' && inpType !== 'radio' && inpType !== 'button') {
+            return;
+          }
+        }
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === 'g') {
+        e.preventDefault();
+        shortcutHandlersRef.current.onJumpNow();
+      } else if (key === 't') {
+        e.preventDefault();
+        shortcutHandlersRef.current.onQuickPick();
+      } else if (key === 'h') {
+        e.preventDefault();
+        shortcutHandlersRef.current.onToggleFloating();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [hasOpenModal]);
+
   const handleViewToday = () => {
     const targetToday = todayKey || getTodayKeyVN();
     setDateInput(targetToday);
@@ -630,10 +869,37 @@ export default function App() {
     void loadDateStates(target, false);
   };
 
-  const handleToggleDensity = () => {
-    const next = density === 'compact' ? 'standard' : 'compact';
-    setDensity(next);
-    localStorage.setItem(DENSITY_STORAGE_KEY, next);
+  const handleChangeDisplaySettings = useCallback((next: TableDisplaySettings) => {
+    const normalized: TableDisplaySettings = {
+      rowSpacing:
+        next.rowSpacing === 'standard' || next.rowSpacing === 'spacious'
+          ? next.rowSpacing
+          : 'compact',
+      fontSize: Math.min(22, Math.max(12, Math.round(next.fontSize || 14))),
+      fontWeight:
+        next.fontWeight === 400 ||
+        next.fontWeight === 500 ||
+        next.fontWeight === 600 ||
+        next.fontWeight === 700 ||
+        next.fontWeight === 800
+          ? next.fontWeight
+          : 700,
+    };
+    setDisplaySettings(normalized);
+    try {
+      localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
+      localStorage.setItem(DENSITY_STORAGE_KEY, normalized.rowSpacing);
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
+  const handleStepDate = (deltaDays: number) => {
+    const base = dateInput || viewedDateKey || todayKey || getTodayKeyVN();
+    const target = shiftDateKey(base, deltaDays);
+    if (!target) return;
+    setDateInput(target);
+    void loadDateStates(target, false);
   };
 
   const handleMobileSegment = (seg: 'morning' | 'afternoon') => {
@@ -1041,22 +1307,6 @@ export default function App() {
 
               <button
                 type="button"
-                onClick={handleToggleDensity}
-                title="Chuyển độ giãn dòng bảng"
-                className={`w-full flex items-center ${
-                  compact ? 'justify-center px-2' : 'gap-2.5 px-3'
-                } py-2 rounded-lg text-sm font-semibold text-[#0F172A] dark:text-slate-300 hover:bg-[#EEF4FB] dark:hover:bg-slate-800 transition-colors cursor-pointer`}
-              >
-                <Rows3 className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400 shrink-0" />
-                {!compact && (
-                  <span className="truncate">
-                    {density === 'compact' ? 'Hiển thị: Gọn' : 'Hiển thị: Chuẩn'}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
                 onClick={handleOpenPrintPdf}
                 title="In lịch A4 / Xuất PDF"
                 className={`w-full flex items-center ${
@@ -1170,7 +1420,7 @@ export default function App() {
         className="print-scroll-reset dual-scroll flex-1 min-w-0 h-full overflow-y-auto flex flex-col"
       >
         {/* Top Header */}
-        <header className="no-print relative z-30 bg-white dark:bg-slate-900 border-b border-[#C7D6E8] dark:border-slate-800 px-4 sm:px-6 py-3">
+        <header className="no-print relative z-30 bg-white dark:bg-slate-900 border-b border-[#C7D6E8] dark:border-slate-800 px-4 sm:px-6 py-2.5">
           <div className="max-w-[1360px] mx-auto flex flex-wrap items-center justify-between gap-3">
             {/* Left: Mobile drawer button + Contextual Breadcrumb */}
             <div className="flex items-center gap-3 min-w-0">
@@ -1194,7 +1444,7 @@ export default function App() {
                     {activeMachineConfig.name}
                   </span>
                 </div>
-                <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-[#083578] dark:text-slate-100 truncate">
+                <h1 className="text-base sm:text-[17px] font-extrabold tracking-tight text-[#083578] dark:text-slate-100 truncate">
                   Hệ thống Điều phối Lịch Chụp X-quang
                 </h1>
               </div>
@@ -1219,7 +1469,7 @@ export default function App() {
                   aria-expanded={themeMenuOpen}
                   aria-label="Chọn chủ đề màu sắc"
                   title="Tùy chỉnh chủ đề giao diện"
-                  className="inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold rounded-xl border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#DCEBFF] dark:hover:bg-slate-700 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 h-10 px-3 text-xs font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#DCEBFF] dark:hover:bg-slate-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Palette className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400" />
                   <span className="hidden xl:inline">Giao diện</span>
@@ -1262,12 +1512,14 @@ export default function App() {
               </div>
 
               {/* Active Supervisor Info */}
-              <div className="hidden xl:flex items-center gap-2 pl-2.5 border-l border-[#C7D6E8] dark:border-slate-800 text-xs">
-                <div className="w-8 h-8 rounded-lg bg-[#DCEBFF] dark:bg-sky-950/60 text-[#0D4EA6] dark:text-sky-300 flex items-center justify-center shrink-0">
-                  <UserCheck className="w-4 h-4" />
+              <div className="hidden xl:flex items-center gap-2.5 pl-2.5 border-l border-[#C7D6E8] dark:border-slate-800 text-xs">
+                <div className="w-8 h-8 rounded-lg bg-[#DCEBFF] dark:bg-sky-950/70 text-[#083578] dark:text-sky-300 font-extrabold text-xs flex items-center justify-center shrink-0">
+                  {getInitials(activeMachineConfig.supervisor)}
                 </div>
                 <div className="leading-tight">
-                  <div className="text-[11px] font-semibold text-[#334155] dark:text-slate-400">Phụ trách máy</div>
+                  <div className="text-[11px] font-semibold text-[#475569] dark:text-slate-400">
+                    Phụ trách máy
+                  </div>
                   <div className="font-bold text-[#0F172A] dark:text-slate-200 whitespace-nowrap">
                     {activeMachineConfig.supervisor}
                   </div>
@@ -1278,54 +1530,87 @@ export default function App() {
         </header>
 
         {/* Main Content Viewport */}
-        <main className="flex-1 px-4 sm:px-6 py-4 sm:py-5">
-          <div className="max-w-[1360px] mx-auto space-y-4">
+        <main className="flex-1 px-4 sm:px-6 py-3.5 sm:py-4">
+          <div className="max-w-[1360px] mx-auto space-y-3.5">
             {/* ===== Radiology Department Hero Banner ===== */}
-            <section
-              aria-label="Banner Khoa Chẩn đoán Hình ảnh"
-              className="no-print relative h-[126px] sm:h-[144px] rounded-xl overflow-hidden border border-[#B6CBE3] dark:border-slate-800 bg-[#083578] shadow-[0_2px_10px_rgba(8,53,120,0.12)]"
-            >
-              {!bannerError ? (
-                <img
-                  src={radiologyBannerImg}
-                  alt="Phòng chụp X-quang kỹ thuật số Bệnh viện"
-                  referrerPolicy="no-referrer"
-                  onError={() => setBannerError(true)}
-                  className="absolute inset-0 w-full h-full object-cover object-[78%_48%]"
-                />
-              ) : (
-                <div
-                  className="absolute inset-0 bg-gradient-to-br from-[#06275B] via-[#0D4EA6] to-[#1D6CE0]"
-                  aria-hidden="true"
-                />
-              )}
+            {(() => {
+              const activeChecked = checkedCounts[activeMachineConfig.key] ?? 0;
+              const activeTotal = totalSlotsByMachine[activeMachineConfig.key] ?? 0;
+              const progressPct = activeTotal > 0 ? Math.round((activeChecked / activeTotal) * 100) : 0;
+              return (
+                <section
+                  aria-label="Banner Khoa Chẩn đoán Hình ảnh"
+                  className="no-print relative h-[92px] sm:h-[104px] rounded-xl overflow-hidden border border-[#B6CBE3] dark:border-slate-800 bg-[#083578] shadow-[0_2px_10px_rgba(8,53,120,0.12)]"
+                >
+                  {!bannerError ? (
+                    <img
+                      src={radiologyBannerImg}
+                      alt="Phòng chụp X-quang kỹ thuật số Bệnh viện"
+                      referrerPolicy="no-referrer"
+                      onError={() => setBannerError(true)}
+                      className="absolute inset-0 w-full h-full object-cover object-[78%_48%]"
+                    />
+                  ) : (
+                    <div
+                      className="absolute inset-0 bg-gradient-to-br from-[#06275B] via-[#0D4EA6] to-[#1D6CE0]"
+                      aria-hidden="true"
+                    />
+                  )}
 
-              {/* Contrast Scrim protecting left editorial text while keeping X-ray unit bright on right */}
-              <div
-                className="absolute inset-0 bg-gradient-to-r from-[#06275B]/95 via-[#083578]/82 via-55% to-[#083578]/15"
-                aria-hidden="true"
-              />
+                  {/* Contrast Scrim protecting left text while keeping right progress crisp */}
+                  <div
+                    className="absolute inset-0 bg-gradient-to-r from-[#06275B]/95 via-[#083578]/85 via-58% to-[#083578]/35"
+                    aria-hidden="true"
+                  />
 
-              <div className="relative z-10 h-full px-5 sm:px-7 flex flex-col justify-center max-w-2xl">
-                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-sky-200">
-                  <span>Khoa Chẩn đoán Hình ảnh</span>
-                  <span aria-hidden="true">·</span>
-                  <span>Hệ thống X-quang kỹ thuật số</span>
-                </div>
-                <h2 className="text-lg sm:text-2xl font-extrabold tracking-tight text-white mt-0.5 leading-snug">
-                  Điều phối Lịch Chụp X-quang
-                </h2>
-                <div className="flex flex-wrap items-center gap-2 text-xs sm:text-[13px] font-medium text-blue-100 mt-1.5">
-                  <span className="font-bold text-white">{activeMachineConfig.name}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>Phụ trách: {activeMachineConfig.supervisor}</span>
-                  <span aria-hidden="true">·</span>
-                  <span className="font-mono tabular-nums">
-                    Ngày {formatDateDisplayVN(viewedDateKey)}
-                  </span>
-                </div>
-              </div>
-            </section>
+                  <div className="relative z-10 h-full px-5 sm:px-6 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] font-semibold text-sky-200">
+                        <span>Khoa Chẩn đoán Hình ảnh</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Hệ thống X-quang kỹ thuật số</span>
+                      </div>
+                      <h2 className="text-lg sm:text-[21px] font-extrabold tracking-tight text-white mt-0.5 leading-snug truncate">
+                        Điều phối Lịch Chụp X-quang
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-blue-100 mt-1">
+                        <span className="font-bold text-white">{activeMachineConfig.name}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Phụ trách: {activeMachineConfig.supervisor}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono tabular-nums">
+                          Ngày {formatDateDisplayVN(viewedDateKey)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right live shift progress readout */}
+                    <div className="hidden md:flex flex-col justify-center min-w-[216px] rounded-lg bg-white/10 backdrop-blur-[2px] border border-white/15 px-4 py-2 shrink-0">
+                      <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-sky-100">
+                        <span>Tiến độ ca chụp</span>
+                        <span className="font-mono font-bold tabular-nums text-white">
+                          {progressPct}%
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2 mt-1">
+                        <span className="font-mono text-lg font-extrabold tabular-nums text-white leading-none">
+                          {activeChecked}
+                          <span className="text-xs font-semibold text-sky-200">
+                            /{activeTotal} ca
+                          </span>
+                        </span>
+                      </div>
+                      <div className="mt-2 w-full h-1.5 rounded-full bg-white/20 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-sky-300 transition-[width] duration-300"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
 
             {/* ===== First-time device lock prompt (non-blocking) ===== */}
             {!lockedMachine && (
@@ -1355,7 +1640,7 @@ export default function App() {
             )}
 
             {/* ===== Control & Date Filter Toolbar ===== */}
-            <div className="no-print bg-white dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="no-print bg-white dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
               {/* Left: Machine Switch Tabs */}
               <div className="flex flex-wrap items-center gap-2">
                 <div
@@ -1418,9 +1703,19 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Right: Date Picker + View Mode + Settings + Reset */}
+              {/* Right: Date Picker + Prev/Next Day + Settings */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex items-center gap-1 p-1 rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-[#F4F8FF] dark:bg-slate-800/90">
+                  <button
+                    type="button"
+                    onClick={() => handleStepDate(-1)}
+                    title="Ngày hôm trước"
+                    aria-label="Xem ngày trước"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-[#334155] dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-[#083578] transition-colors cursor-pointer shrink-0"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleViewToday}
@@ -1454,26 +1749,25 @@ export default function App() {
                   >
                     Xem ngày
                   </button>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={handleToggleDensity}
-                  aria-pressed={density === 'compact'}
-                  title="Chuyển đổi độ giãn dòng bảng"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#EEF4FB] dark:hover:bg-slate-700 cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <Rows3 className="w-3.5 h-3.5 text-[#0D4EA6]" />
-                  <span>{density === 'compact' ? 'Dòng: Gọn' : 'Dòng: Chuẩn'}</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStepDate(1)}
+                    title="Ngày tiếp theo"
+                    aria-label="Xem ngày sau"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-[#334155] dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-[#083578] transition-colors cursor-pointer shrink-0"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
                 <button
                   type="button"
                   onClick={handleOpenSettings}
                   title="Cài đặt hệ thống (yêu cầu mật khẩu)"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#DCEBFF] dark:hover:bg-slate-700 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#DCEBFF] dark:hover:bg-slate-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <Settings className="w-3.5 h-3.5 text-[#0D4EA6]" />
+                  <Settings className="w-3.5 h-3.5 text-[#0D4EA6] dark:text-sky-400" />
                   <span>Cài đặt</span>
                 </button>
               </div>
@@ -1567,12 +1861,13 @@ export default function App() {
             {/* ===== Active Machine Schedule Table ===== */}
             <div ref={scheduleAreaRef}>
               <ScheduleTable
+                ref={scheduleTableRef}
                 machine={activeMachineConfig}
                 slots={activeSlots}
                 isToday={isToday}
                 isReadOnly={isReadOnly}
                 loading={loadingStates}
-                density={density}
+                displaySettings={displaySettings}
                 mobileSegment={mobileSegment}
                 viewedDateKey={viewedDateKey}
                 nowTick={nowTick}
@@ -1581,10 +1876,10 @@ export default function App() {
                 floatingClockOpen={floatingClockOpen}
                 pendingSlots={pendingSlots}
                 onSlotClick={handleSlotClick}
-                onPrint={handleOpenPrintPdf}
-                onCopy={(rows) => handleExportExcel(rows)}
+                onChangeDisplaySettings={handleChangeDisplaySettings}
                 onSwitchMobileSegment={handleMobileSegment}
                 onToggleFloatingClock={() => pipClockRef.current?.toggle()}
+                onRequestQuickPick={handleRequestQuickPick}
               />
             </div>
           </div>
@@ -1616,6 +1911,30 @@ export default function App() {
             void commitSlotToggle(uncheckTarget.row, uncheckTarget.session, false);
           }
           setUncheckTarget(null);
+        }}
+      />
+
+      <QuickPickConfirmModal
+        target={
+          quickPickTarget
+            ? {
+                machineName: activeMachineConfig.name,
+                stt: quickPickTarget.row.stt,
+                sessionLabel: quickPickTarget.sessionLabel,
+                startTime: quickPickTarget.startTime,
+                endTime: quickPickTarget.endTime,
+                relativeNote: quickPickTarget.relativeNote,
+              }
+            : null
+        }
+        onCancel={() => setQuickPickTarget(null)}
+        onConfirm={() => {
+          if (quickPickTarget) {
+            const { row, session } = quickPickTarget;
+            void commitSlotToggle(row, session, true);
+            scheduleTableRef.current?.scrollToSlot(row.stt, session);
+          }
+          setQuickPickTarget(null);
         }}
       />
 

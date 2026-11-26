@@ -97,10 +97,10 @@
 .xq-checkbox {
   appearance: none;
   -webkit-appearance: none;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 6px;
-  border: 2px solid #64748B;
+  border: 1.8px solid #64748B;
   background-color: #FFFFFF;
   cursor: pointer;
   display: inline-grid;
@@ -122,10 +122,10 @@
 
 .xq-checkbox::after {
   content: "";
-  width: 11px;
-  height: 6px;
-  border-left: 2.5px solid #FFFFFF;
-  border-bottom: 2.5px solid #FFFFFF;
+  width: 10px;
+  height: 5.5px;
+  border-left: 2.2px solid #FFFFFF;
+  border-bottom: 2.2px solid #FFFFFF;
   transform: rotate(-45deg) scale(0);
   margin-top: -2px;
   transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -159,8 +159,16 @@ table.xq-print-table tbody tr {
   background-color: #FFFFFF;
 }
 
+table.xq-print-table tbody tr:nth-child(even) {
+  background-color: #F8FBFF;
+}
+
 .dark table.xq-print-table tbody tr {
   background-color: #0F172A;
+}
+
+.dark table.xq-print-table tbody tr:nth-child(even) {
+  background-color: #131D33;
 }
 
 table.xq-print-table tbody tr td {
