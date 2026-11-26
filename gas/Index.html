@@ -70,9 +70,11 @@
     h1, h2, h3, .font-display { font-family: var(--font-display); }
     .mono, .tabular-nums { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-    /* HIS Workspace Shell */
+    /* HIS Workspace Shell (Dual Scrollbars: Page + Schedule Table) */
     .app-shell {
-      min-height: 100vh;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
       display: flex;
       background: var(--bg);
     }
@@ -227,8 +229,55 @@
       .desktop-collapse-btn { display: none; }
     }
 
-    /* Main Workspace Column */
-    .main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    /* Main Workspace Column (Independent Page Vertical Scrollbar) */
+    .main-col {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(13, 78, 166, 0.36) rgba(199, 214, 232, 0.28);
+      scrollbar-gutter: stable;
+    }
+    .main-col::-webkit-scrollbar,
+    .table-scroll::-webkit-scrollbar {
+      width: 9px;
+      height: 9px;
+    }
+    .main-col::-webkit-scrollbar-track,
+    .table-scroll::-webkit-scrollbar-track {
+      background: rgba(199, 214, 232, 0.25);
+      border-radius: 9999px;
+    }
+    .main-col::-webkit-scrollbar-thumb,
+    .table-scroll::-webkit-scrollbar-thumb {
+      background-color: rgba(13, 78, 166, 0.36);
+      border-radius: 9999px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    .main-col::-webkit-scrollbar-thumb:hover,
+    .table-scroll::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(8, 53, 120, 0.62);
+    }
+    body.theme-dark .main-col,
+    body.theme-dark .table-scroll {
+      scrollbar-color: rgba(56, 189, 248, 0.38) rgba(15, 23, 42, 0.5);
+    }
+    body.theme-dark .main-col::-webkit-scrollbar-track,
+    body.theme-dark .table-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.45);
+    }
+    body.theme-dark .main-col::-webkit-scrollbar-thumb,
+    body.theme-dark .table-scroll::-webkit-scrollbar-thumb {
+      background-color: rgba(56, 189, 248, 0.38);
+    }
+    body.theme-dark .main-col::-webkit-scrollbar-thumb:hover,
+    body.theme-dark .table-scroll::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(56, 189, 248, 0.65);
+    }
 
     /* Top Header */
     .top-header {
@@ -679,53 +728,209 @@
     }
 
     /* Schedule Table Card */
-    .table-card { overflow-x: clip; }
+    .table-card { overflow: hidden; }
     .table-toolbar {
-      position: sticky;
-      top: 0;
-      z-index: 30;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 14px;
       padding: 14px 18px;
-      border-top-left-radius: 11px;
-      border-top-right-radius: 11px;
       border-bottom: 1px solid var(--border);
       background: var(--surface);
       box-shadow: 0 1px 2px rgba(8, 53, 120, 0.04);
+    }
+    .table-toolbar-left {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
     .table-kicker { font-size: 12px; font-weight: 600; color: var(--muted); }
     .table-kicker .dept { color: var(--accent-500); font-weight: 700; }
     .table-title { margin: 2px 0 0; font-size: 16.5px; font-weight: 800; color: var(--accent-600); }
     .toolbar-time-box {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 5px 11px;
-      border-radius: 8px;
-      border: 1px solid var(--border-strong);
-      background: var(--surface-alt);
-      white-space: nowrap;
+      margin-left: auto;
+      border-radius: 14px;
+      border: 1px solid #B6CBE3;
+      background: #FFFFFF;
+      box-shadow: 0 6px 18px -6px rgba(8, 53, 120, 0.12);
+      overflow: hidden;
       flex-shrink: 0;
     }
-    .toolbar-time-ico { color: var(--accent-500); display: inline-flex; flex-shrink: 0; }
-    .toolbar-time-meta { line-height: 1.2; }
-    .toolbar-time-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
-    .toolbar-time-val { font-family: var(--font-mono); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 5px; }
-    .toolbar-time-pick { color: var(--accent-600); }
-    .toolbar-time-pick.empty { color: var(--muted); }
-    .toolbar-time-pick.now { color: #15803D; }
-    .toolbar-time-pick.past { color: #B45309; }
-    .toolbar-time-pick.overdue { color: #B91C1C; }
-    .toolbar-time-sep { color: #64748B; }
-    .toolbar-time-now { color: var(--text); }
+    .toolbar-time-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 8px 20px;
+      border-bottom: 1px solid #C7D6E8;
+      background: #E8F1FC;
+    }
+    .toolbar-time-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #083578;
+      white-space: nowrap;
+    }
+    .toolbar-time-title svg { stroke: #0D4EA6; }
+    .toolbar-pip-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid #93BCEB;
+      background: #FFFFFF;
+      color: #083578;
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+    }
+    .toolbar-pip-btn:hover { background: #DCEBFF; }
+    .toolbar-pip-btn.is-active {
+      border-color: #86EFAC;
+      background: #ECFDF5;
+      color: #047857;
+    }
+    .toolbar-pip-btn.is-active:hover { background: #D1FAE5; }
+    .toolbar-time-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .toolbar-time-seg {
+      padding: 14px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 184px;
+      background: #FFFFFF;
+    }
+    .toolbar-time-seg + .toolbar-time-seg {
+      border-left: 1px solid #C7D6E8;
+      background: #F2F7FF;
+      min-width: 220px;
+    }
+    .toolbar-time-lbl {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      white-space: nowrap;
+    }
+    .toolbar-time-lbl.now-lbl { color: #0D4EA6; }
+    .toolbar-time-pick,
+    .toolbar-time-now {
+      margin-top: 6px;
+      font-family: var(--font-mono);
+      font-size: 38px;
+      line-height: 1;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+    @media (min-width: 1280px) {
+      .toolbar-time-pick,
+      .toolbar-time-now { font-size: 42px; }
+    }
+    .toolbar-time-pick { color: #0F172A; }
+    .toolbar-time-pick.empty { color: #94A3B8; }
+    .toolbar-time-pick.upcoming { color: #16A34A; }
+    .toolbar-time-pick.soon,
+    .toolbar-time-pick.now,
+    .toolbar-time-pick.past { color: #CA8A04; }
+    .toolbar-time-pick.overdue { color: #DC2626; }
+    .toolbar-time-now { color: #083578; }
+    body.theme-dark .toolbar-time-box {
+      border-color: #1E293B;
+      background: #0B1220;
+      box-shadow: 0 8px 24px -6px rgba(8, 53, 120, 0.34);
+    }
+    body.theme-dark .toolbar-time-head {
+      border-bottom-color: rgba(148, 163, 184, 0.16);
+      background: #111A2E;
+    }
+    body.theme-dark .toolbar-time-title { color: #CBD5E1; }
+    body.theme-dark .toolbar-time-title svg { stroke: #38BDF8; }
+    body.theme-dark .toolbar-pip-btn {
+      border-color: rgba(56, 189, 248, 0.35);
+      background: rgba(14, 165, 233, 0.15);
+      color: #7DD3FC;
+    }
+    body.theme-dark .toolbar-pip-btn:hover { background: rgba(14, 165, 233, 0.26); }
+    body.theme-dark .toolbar-pip-btn.is-active {
+      border-color: rgba(52, 211, 153, 0.45);
+      background: rgba(16, 185, 129, 0.2);
+      color: #6EE7B7;
+    }
+    body.theme-dark .toolbar-time-seg { background: transparent; }
+    body.theme-dark .toolbar-time-seg + .toolbar-time-seg {
+      border-left-color: rgba(148, 163, 184, 0.16);
+      background: rgba(15, 23, 42, 0.55);
+    }
+    body.theme-dark .toolbar-time-lbl { color: #94A3B8; }
+    body.theme-dark .toolbar-time-lbl.now-lbl { color: rgba(125, 211, 252, 0.9); }
+    body.theme-dark .toolbar-time-pick { color: #F8FAFC; }
+    body.theme-dark .toolbar-time-pick.empty { color: #64748B; }
+    body.theme-dark .toolbar-time-pick.upcoming { color: #22C55E; }
+    body.theme-dark .toolbar-time-pick.soon,
+    body.theme-dark .toolbar-time-pick.now,
+    body.theme-dark .toolbar-time-pick.past { color: #FACC15; }
+    body.theme-dark .toolbar-time-pick.overdue { color: #F87171; }
+    body.theme-dark .toolbar-time-now { color: #38BDF8; }
+    @media (max-width: 900px) {
+      .toolbar-time-box { margin-left: 0; width: 100%; }
+      .toolbar-time-head { padding: 8px 14px; }
+      .toolbar-time-seg, .toolbar-time-seg + .toolbar-time-seg { min-width: 0; padding: 12px 16px; }
+      .toolbar-time-pick, .toolbar-time-now { font-size: 30px; }
+    }
+    .toolbar-restore-btn {
+      display: none;
+      margin-left: auto;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 14px;
+      border-radius: 9px;
+      border: 1px solid #86EFAC;
+      background: #ECFDF5;
+      color: #047857;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 140ms ease;
+    }
+    .toolbar-restore-btn:hover { background: #D1FAE5; }
+    @media (max-width: 900px) {
+      .toolbar-restore-btn { margin-left: 0; }
+    }
 
     .table-scroll {
-      overflow-x: clip;
-      border-bottom-left-radius: 11px;
-      border-bottom-right-radius: 11px;
+      height: calc(100vh - 248px);
+      height: calc(100dvh - 248px);
+      min-height: 340px;
+      max-height: 760px;
+      overflow-y: auto;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(13, 78, 166, 0.36) rgba(199, 214, 232, 0.28);
+      scrollbar-gutter: stable;
+    }
+    .table-card.floating-clock-open .table-scroll {
+      height: calc(100vh - 212px);
+      height: calc(100dvh - 212px);
     }
     table.xq {
       width: 100%;
@@ -736,7 +941,7 @@
 
     table.xq thead tr.grp th {
       position: sticky;
-      top: var(--table-toolbar-h, 68px);
+      top: 0;
       z-index: 20;
       padding: 9px 8px;
       font-size: 11.5px;
@@ -750,7 +955,7 @@
     }
     table.xq thead tr.sub th {
       position: sticky;
-      top: calc(var(--table-toolbar-h, 68px) + var(--table-grp-h, 35px));
+      top: var(--table-grp-h, 35px);
       z-index: 20;
       padding: 8px;
       font-size: 11.5px;
@@ -1127,7 +1332,7 @@
     .toast-stack {
       position: fixed;
       right: 16px;
-      bottom: 76px;
+      bottom: 16px;
       z-index: 90;
       display: flex;
       flex-direction: column;
@@ -1150,52 +1355,18 @@
     .toast.success { border-color: #BBF7D0; }
     .toast.error { border-color: #FECACA; }
 
-    /* Multitasking PiP Clock */
-    .pip-launcher-btn {
-      position: fixed;
-      right: 20px;
-      bottom: 20px;
-      z-index: 80;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
-      border-radius: 12px;
-      border: none;
-      background: #16A34A;
-      color: #FFFFFF;
-      font-family: var(--font-sans);
-      font-size: 13px;
-      font-weight: 700;
-      box-shadow: 0 6px 18px rgba(22, 163, 74, 0.34);
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background 140ms ease, box-shadow 140ms ease;
-    }
-    .pip-launcher-btn:hover { background: #15803D; }
-    .pip-launcher-btn.is-active {
-      background: #083578;
-      box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.7), 0 6px 18px rgba(8, 53, 120, 0.34);
-    }
-    .pip-live-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: #34D399;
-      display: none;
-    }
-    .pip-launcher-btn.is-active .pip-live-dot { display: inline-block; }
+    /* Multitasking PiP Clock Fallback Card */
     .pip-fallback-card {
       position: fixed;
       right: 20px;
-      bottom: 74px;
+      bottom: 20px;
       z-index: 85;
       width: 310px;
       border-radius: 12px;
-      border: 1px solid #334155;
-      background: #0B1220;
-      color: #F1F5F9;
-      box-shadow: 0 18px 40px rgba(2, 6, 23, 0.55);
+      border: 1px solid #B6CBE3;
+      background: #FFFFFF;
+      color: #0F172A;
+      box-shadow: 0 14px 34px rgba(8, 53, 120, 0.18);
       overflow: hidden;
       display: none;
       user-select: none;
@@ -1206,16 +1377,46 @@
       align-items: center;
       justify-content: space-between;
       padding: 8px 12px;
-      background: #111A2E;
-      border-bottom: 1px solid #1E293B;
+      background: #E8F1FC;
+      border-bottom: 1px solid #C7D6E8;
       cursor: grab;
     }
     .pip-fallback-head:active { cursor: grabbing; }
+    .pip-fallback-badge { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #DCEBFF; color: #083578; letter-spacing: 0.04em; }
+    .pip-fallback-machine { font-size: 11px; font-weight: 600; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pip-fallback-close { border: none; background: transparent; color: #475569; font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+    .pip-fallback-close:hover { background: #DCEBFF; color: #083578; }
     .pip-fallback-body { padding: 12px 16px; }
     .pip-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-    .pip-row + .pip-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(148,163,184,0.16); }
-    .pip-lbl { font-size: 13px; font-weight: 600; color: #94A3B8; }
+    .pip-row + .pip-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid #E2EAF2; }
+    .pip-lbl { font-size: 13px; font-weight: 600; color: #475569; }
     .pip-val { font-family: var(--font-mono); font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .pip-val.now-val { color: #083578; }
+    .pip-val.pick-val { color: #0F172A; }
+    .pip-val.pick-val.empty { color: #94A3B8; }
+    .pip-val.pick-val.upcoming { color: #16A34A; }
+    .pip-val.pick-val.soon,
+    .pip-val.pick-val.now,
+    .pip-val.pick-val.past { color: #CA8A04; }
+    .pip-val.pick-val.overdue { color: #DC2626; }
+    .pip-fallback-bar { height: 2px; margin-top: 10px; border-radius: 999px; background: rgba(13, 78, 166, 0.8); }
+    body.theme-dark .pip-fallback-card { border-color: #334155; background: #0B1220; color: #F1F5F9; box-shadow: 0 18px 40px rgba(2, 6, 23, 0.55); }
+    body.theme-dark .pip-fallback-head { background: #111A2E; border-bottom-color: #1E293B; }
+    body.theme-dark .pip-fallback-badge { background: rgba(51, 65, 85, 0.8); color: #E2E8F0; }
+    body.theme-dark .pip-fallback-machine { color: #94A3B8; }
+    body.theme-dark .pip-fallback-close { color: #94A3B8; }
+    body.theme-dark .pip-fallback-close:hover { background: #1E293B; color: #FFFFFF; }
+    body.theme-dark .pip-row + .pip-row { border-top-color: rgba(148, 163, 184, 0.16); }
+    body.theme-dark .pip-lbl { color: #94A3B8; }
+    body.theme-dark .pip-val.now-val { color: #38BDF8; }
+    body.theme-dark .pip-val.pick-val { color: #F8FAFC; }
+    body.theme-dark .pip-val.pick-val.empty { color: #64748B; }
+    body.theme-dark .pip-val.pick-val.upcoming { color: #22C55E; }
+    body.theme-dark .pip-val.pick-val.soon,
+    body.theme-dark .pip-val.pick-val.now,
+    body.theme-dark .pip-val.pick-val.past { color: #FACC15; }
+    body.theme-dark .pip-val.pick-val.overdue { color: #F87171; }
+    body.theme-dark .pip-fallback-bar { background: rgba(16, 185, 129, 0.85); }
 
     /* Print */
     .print-only { display: none; }
@@ -1455,26 +1656,47 @@
             </div>
 
             <div id="tableToolbar" class="table-toolbar no-print">
-              <div>
-                <div class="table-kicker"><span class="dept">Chẩn đoán hình ảnh</span> · <span id="tableSupervisor">Phụ trách: —</span> · <span id="tableRowCount" class="mono">— khung giờ</span></div>
-                <h2 id="tableTitle" class="table-title">MÁY CHỤP X QUANG TITAN 2000</h2>
+              <div class="table-toolbar-left">
+                <div>
+                  <div class="table-kicker"><span class="dept">Chẩn đoán hình ảnh</span> · <span id="tableSupervisor">Phụ trách: —</span> · <span id="tableRowCount" class="mono">— khung giờ</span></div>
+                  <h2 id="tableTitle" class="table-title">MÁY CHỤP X QUANG TITAN 2000</h2>
+                </div>
+                <div class="action-group">
+                  <button id="btnJumpNow" class="btn" type="button" style="display:none;background:var(--accent-50);border-color:#CFE3FA;color:var(--accent-600);">◎ Tới ca hiện tại</button>
+                  <button id="btnPrint" class="btn" type="button">🖨️ In / PDF</button>
+                  <button id="btnCopy" class="btn primary" type="button">📊 Xuất Excel</button>
+                </div>
               </div>
-              <div class="action-group">
-                <div id="toolbarTimeBox" class="toolbar-time-box" title="Giờ bắt đầu ca chụp đã chọn sau cùng / Đồng hồ thời gian thực (Giờ Việt Nam)">
-                  <span class="toolbar-time-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
-                  <div class="toolbar-time-meta">
-                    <div class="toolbar-time-lbl">Đã chọn sau cùng / Hiện tại</div>
-                    <div class="toolbar-time-val">
-                      <span id="toolbarLastPick" class="toolbar-time-pick empty">--:--</span>
-                      <span class="toolbar-time-sep">/</span>
-                      <span id="toolbarLiveClock" class="toolbar-time-now">--:--:--</span>
+
+              <div id="toolbarTimeBox" class="toolbar-time-box" title="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực (Giờ Việt Nam)">
+                <div class="toolbar-time-head">
+                  <div class="toolbar-time-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span>Đồng hồ ca chụp</span>
+                  </div>
+                  <button id="btnPipClock" class="toolbar-pip-btn" type="button" aria-pressed="false" title="Chuyển đồng hồ thành cửa sổ nổi luôn hiển thị">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"></path><rect x="12" y="13" width="10" height="7" rx="2"></rect></svg>
+                    <span id="pipLauncherText">Đồng hồ nổi</span>
+                  </button>
+                </div>
+                <div class="toolbar-time-grid">
+                  <div class="toolbar-time-seg">
+                    <div class="toolbar-time-lbl">
+                      <span>Đã chọn sau cùng</span>
                     </div>
+                    <div id="toolbarLastPick" class="toolbar-time-pick empty">--:--</div>
+                  </div>
+                  <div class="toolbar-time-seg">
+                    <div class="toolbar-time-lbl now-lbl">Giờ hiện tại (VN)</div>
+                    <div id="toolbarLiveClock" class="toolbar-time-now">--:--:--</div>
                   </div>
                 </div>
-                <button id="btnJumpNow" class="btn" type="button" style="display:none;background:var(--accent-50);border-color:#CFE3FA;color:var(--accent-600);">◎ Tới ca hiện tại</button>
-                <button id="btnPrint" class="btn" type="button">🖨️ In / PDF</button>
-                <button id="btnCopy" class="btn primary" type="button">📊 Xuất Excel</button>
               </div>
+
+              <button id="btnRestoreClock" class="toolbar-restore-btn" type="button" aria-pressed="true" title="Đóng cửa sổ đồng hồ nổi và hiện lại đồng hồ gốc">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"></path><rect x="12" y="13" width="10" height="7" rx="2"></rect></svg>
+                <span>Đóng đồng hồ nổi · Hiện đồng hồ</span>
+              </button>
             </div>
 
             <div id="tableScroll" class="table-scroll">
@@ -1864,32 +2086,26 @@
   <canvas id="pipClockCanvas" width="520" height="260" aria-hidden="true" style="position:fixed;left:-9999px;top:-9999px;pointer-events:none;"></canvas>
   <video id="pipClockVideo" muted playsinline autoplay aria-hidden="true" style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;right:0;bottom:0;"></video>
 
-  <div id="pipFallbackCard" class="pip-fallback-card no-print" role="dialog" aria-label="Đồng hồ đa nhiệm">
+  <div id="pipFallbackCard" class="pip-fallback-card no-print" role="dialog" aria-label="Đồng hồ nổi">
     <div id="pipFallbackHead" class="pip-fallback-head">
       <div style="display:flex;align-items:center;gap:8px;min-width:0;">
-        <span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;background:rgba(51,65,85,0.8);color:#E2E8F0;letter-spacing:0.04em;">TRỰC TIẾP</span>
-        <span id="pipFallbackMachine" style="font-size:11px;font-weight:600;color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">TITAN 2000</span>
+        <span class="pip-fallback-badge">TRỰC TIẾP</span>
+        <span id="pipFallbackMachine" class="pip-fallback-machine">TITAN 2000</span>
       </div>
-      <button id="btnClosePipFallback" type="button" aria-label="Đóng đồng hồ đa nhiệm" style="border:none;background:transparent;color:#94A3B8;font-size:16px;line-height:1;cursor:pointer;padding:2px 6px;">✕</button>
+      <button id="btnClosePipFallback" class="pip-fallback-close" type="button" aria-label="Đóng đồng hồ nổi">✕</button>
     </div>
     <div class="pip-fallback-body">
       <div class="pip-row">
         <span class="pip-lbl">Giờ hiện tại:</span>
-        <span id="pipFallbackNow" class="pip-val" style="color:#149CE0;">--:--:--</span>
+        <span id="pipFallbackNow" class="pip-val now-val">--:--:--</span>
       </div>
       <div class="pip-row">
         <span class="pip-lbl">Giờ đã chọn:</span>
-        <span id="pipFallbackPick" class="pip-val" style="color:#CBD5E1;">--:--</span>
+        <span id="pipFallbackPick" class="pip-val pick-val empty">--:--</span>
       </div>
-      <div style="height:2px;margin-top:10px;border-radius:999px;background:rgba(16,185,129,0.85);"></div>
+      <div class="pip-fallback-bar"></div>
     </div>
   </div>
-
-  <button id="btnPipClock" class="pip-launcher-btn no-print" type="button" title="Mở cửa sổ đồng hồ nổi luôn hiển thị trên các ứng dụng khác">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>
-    <span id="pipLauncherText">Mở đồng hồ đa nhiệm</span>
-    <span class="pip-live-dot" aria-hidden="true"></span>
-  </button>
 
   <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
@@ -2823,10 +3039,11 @@
           color = "#F8FAFC";
           if (viewedDateKey === todayKey && chosenMin >= 0) {
             var p = getVNParts();
-            var diff = (p.hour * 60 + p.minute) - chosenMin;
-            if (diff === 0) { statusClass = "now"; color = "#34D399"; }
-            else if (diff > 30) { statusClass = "overdue"; color = "#F87171"; }
-            else if (diff > 0) { statusClass = "past"; color = "#FBBF24"; }
+            var nowSec = p.hour * 3600 + p.minute * 60 + p.second;
+            var deltaSec = chosenMin * 60 - nowSec;
+            if (deltaSec > 3) { statusClass = "upcoming"; color = "#22C55E"; }
+            else if (deltaSec >= 0) { statusClass = "soon"; color = "#FACC15"; }
+            else { statusClass = "overdue"; color = "#F87171"; }
           }
         }
         return {
@@ -3237,21 +3454,24 @@
       window.addEventListener("resize", updateTableStickyOffsets);
 
       function scrollToRowInTable(stt) {
+        var container = $("tableScroll");
         var tbody = $("scheduleBody");
-        if (!tbody) return;
+        if (!container || !tbody) return;
         var rowEl = tbody.querySelector("tr[data-stt=\"" + stt + "\"]");
         if (!rowEl) return;
+        var card = container.closest(".table-card");
+        if (card && card.scrollIntoView) {
+          card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
         updateTableStickyOffsets();
-        var tb = $("tableToolbar");
-        var tbH = tb ? Math.floor(tb.getBoundingClientRect().height) : 68;
         var thead = $("scheduleTable").querySelector("thead");
         var theadH = thead ? thead.offsetHeight : 72;
-        var stickyTop = tbH + theadH;
+        var containerRect = container.getBoundingClientRect();
         var rect = rowEl.getBoundingClientRect();
-        var rowTopOnPage = window.scrollY + rect.top;
-        var visibleH = Math.max(120, window.innerHeight - stickyTop);
-        var targetTop = rowTopOnPage - stickyTop - visibleH / 2 + rect.height / 2;
-        window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+        var rowOffsetInContainer = container.scrollTop + (rect.top - containerRect.top);
+        var visibleH = Math.max(120, container.clientHeight - theadH);
+        var targetTop = rowOffsetInContainer - theadH - visibleH / 2 + rect.height / 2;
+        container.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
         rowEl.classList.add("flash-now-row");
         setTimeout(function () { rowEl.classList.remove("flash-now-row"); }, 1800);
       }
@@ -4601,8 +4821,20 @@
         var isOpen = pipState.active || pipState.fallbackOpen;
         var btn = $("btnPipClock");
         var lbl = $("pipLauncherText");
-        if (btn) btn.classList.toggle("is-active", isOpen);
-        if (lbl) lbl.textContent = isOpen ? "Đóng đồng hồ đa nhiệm" : "Mở đồng hồ đa nhiệm";
+        var timeBox = $("toolbarTimeBox");
+        var restoreBtn = $("btnRestoreClock");
+        var tableCard = document.querySelector(".table-card");
+        if (timeBox) timeBox.style.display = isOpen ? "none" : "";
+        if (restoreBtn) restoreBtn.style.display = isOpen ? "inline-flex" : "none";
+        if (tableCard) tableCard.classList.toggle("floating-clock-open", isOpen);
+        if (btn) {
+          btn.classList.toggle("is-active", isOpen);
+          btn.setAttribute("aria-pressed", isOpen ? "true" : "false");
+          btn.title = isOpen
+            ? "Đóng cửa sổ đồng hồ nổi"
+            : "Chuyển đồng hồ thành cửa sổ nổi luôn hiển thị";
+        }
+        if (lbl) lbl.textContent = isOpen ? "Đóng đồng hồ nổi" : "Đồng hồ nổi";
       }
 
       function drawPipClockFrame() {
@@ -4614,7 +4846,7 @@
         if (fbNow) fbNow.textContent = p.timeStr;
         if (fbPick) {
           fbPick.textContent = info.picked;
-          fbPick.style.color = info.color;
+          fbPick.className = "pip-val pick-val " + (info.statusClass || "empty");
         }
         if (fbMach) fbMach.textContent = info.machineName;
 
@@ -4699,7 +4931,7 @@
       });
       window.addEventListener("pointerup", function () { pipState.dragging = false; });
 
-      $("btnPipClock").addEventListener("click", function () {
+      function handleTogglePipClock() {
         if (pipState.active) {
           if (document.pictureInPictureElement) {
             document.exitPictureInPicture().catch(function () {});
@@ -4744,7 +4976,124 @@
         $("pipFallbackCard").classList.add("open");
         syncPipButtonUI();
         showToast("info", "Đã mở đồng hồ nổi trong trang.");
-      });
+      }
+
+      $("btnPipClock").addEventListener("click", handleTogglePipClock);
+      if ($("btnRestoreClock")) {
+        $("btnRestoreClock").addEventListener("click", handleTogglePipClock);
+      }
+
+      (function setupTableScrollChaining() {
+        var inner = $("tableScroll");
+        var outer = document.querySelector(".main-col");
+        if (!inner || !outer) return;
+
+        var rafId = null;
+        var lastTs = 0;
+        var smoothTop = 0;
+        var targetTop = 0;
+        var lastWrittenTop = -1;
+        var pendingInner = 0;
+
+        function stopAnim() {
+          if (rafId !== null) {
+            window.cancelAnimationFrame(rafId);
+            rafId = null;
+          }
+          pendingInner = 0;
+          lastWrittenTop = -1;
+        }
+
+        function stepAnim(ts) {
+          if (lastWrittenTop >= 0 && Math.abs(outer.scrollTop - lastWrittenTop) > 3) {
+            stopAnim();
+            return;
+          }
+          var dt = lastTs > 0 ? Math.min(0.05, (ts - lastTs) / 1000) : 1 / 60;
+          lastTs = ts;
+
+          var maxOuterTop = Math.max(0, outer.scrollHeight - outer.clientHeight);
+          if (targetTop > maxOuterTop) targetTop = maxOuterTop;
+
+          var diff = targetTop - smoothTop;
+          if (Math.abs(diff) <= 0.6) {
+            outer.scrollTop = targetTop;
+            var leftover = pendingInner;
+            stopAnim();
+            if (leftover > 0) inner.scrollTop += leftover;
+            return;
+          }
+
+          var factor = 1 - Math.exp(-20 * dt);
+          smoothTop += diff * factor;
+          outer.scrollTop = smoothTop;
+          lastWrittenTop = outer.scrollTop;
+          rafId = window.requestAnimationFrame(stepAnim);
+        }
+
+        inner.addEventListener("wheel", function (e) {
+          if (e.ctrlKey || e.metaKey) return;
+          var dy = e.deltaY;
+          if (e.deltaMode === 1) dy *= 16;
+          else if (e.deltaMode === 2) dy *= inner.clientHeight;
+          if (dy === 0) return;
+
+          var dx = e.deltaX;
+          if (e.deltaMode === 1) dx *= 16;
+          else if (e.deltaMode === 2) dx *= inner.clientWidth;
+          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dy) < 2) return;
+
+          if (dy < 0) {
+            stopAnim();
+            return;
+          }
+
+          var maxOuterTop = Math.max(0, outer.scrollHeight - outer.clientHeight);
+          var currentTarget = rafId !== null ? targetTop : outer.scrollTop;
+          var remOuterDown = maxOuterTop - currentTarget;
+
+          if (remOuterDown > 1 || (rafId !== null && outer.scrollTop < maxOuterTop - 1)) {
+            e.preventDefault();
+            if (rafId === null) {
+              smoothTop = outer.scrollTop;
+              targetTop = outer.scrollTop;
+              lastWrittenTop = outer.scrollTop;
+              lastTs = 0;
+            }
+            var addOuter = Math.min(dy, Math.max(0, maxOuterTop - targetTop));
+            targetTop += addOuter;
+            var leftover = dy - addOuter;
+            if (leftover > 0) pendingInner += leftover;
+            if (rafId === null) {
+              rafId = window.requestAnimationFrame(stepAnim);
+            }
+          }
+        }, { passive: false });
+
+        var lastTouchY = null;
+        inner.addEventListener("touchstart", function (e) {
+          stopAnim();
+          lastTouchY = e.touches && e.touches.length === 1 ? e.touches[0].clientY : null;
+        }, { passive: true });
+        inner.addEventListener("touchmove", function (e) {
+          if (!e.touches || e.touches.length !== 1 || lastTouchY === null) return;
+          var curY = e.touches[0].clientY;
+          var dy = lastTouchY - curY;
+          lastTouchY = curY;
+          if (dy <= 0) return;
+
+          var maxOuterTop = Math.max(0, outer.scrollHeight - outer.clientHeight);
+          var remOuterDown = maxOuterTop - outer.scrollTop;
+          if (remOuterDown > 1) {
+            if (e.cancelable) e.preventDefault();
+            var moveOuter = Math.min(dy, remOuterDown);
+            outer.scrollTop += moveOuter;
+            var leftover = dy - moveOuter;
+            if (leftover > 0) inner.scrollTop += leftover;
+          }
+        }, { passive: false });
+        inner.addEventListener("touchend", function () { lastTouchY = null; }, { passive: true });
+      })();
 
       drawPipClockFrame();
 

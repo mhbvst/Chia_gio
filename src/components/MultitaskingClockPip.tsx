@@ -1,12 +1,24 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { GripHorizontal, Tv, X } from 'lucide-react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
+import { GripHorizontal, X } from 'lucide-react';
 import { formatTimeVN } from '../utils/vnTime';
+
+export interface MultitaskingClockPipHandle {
+  toggle: () => void;
+}
 
 interface MultitaskingClockPipProps {
   machineName: string;
   lastPickedStart: string | null;
   lastPickTone: 'empty' | 'neutral' | 'now' | 'past' | 'overdue' | 'upcoming';
   isToday: boolean;
+  onOpenStateChange?: (open: boolean) => void;
   onNotify?: (type: 'info' | 'error' | 'success', message: string) => void;
 }
 
@@ -19,26 +31,42 @@ function getLastPickHex(
 ): string {
   if (!lastPickedStart) return '#CBD5E1';
   switch (tone) {
+    case 'upcoming':
+      return '#22C55E';
+    case 'past':
     case 'now':
-      return '#34D399';
+      return '#FACC15';
     case 'overdue':
       return '#F87171';
-    case 'past':
-      return '#FBBF24';
-    case 'upcoming':
     case 'neutral':
     default:
       return '#F8FAFC';
   }
 }
 
-export const MultitaskingClockPip: React.FC<MultitaskingClockPipProps> = ({
-  machineName,
-  lastPickedStart,
-  lastPickTone,
-  isToday,
-  onNotify,
-}) => {
+function getLastPickClass(
+  lastPickedStart: string | null,
+  tone: MultitaskingClockPipProps['lastPickTone']
+): string {
+  if (!lastPickedStart) return 'text-slate-400 dark:text-slate-400';
+  switch (tone) {
+    case 'upcoming':
+      return 'text-[#16A34A] dark:text-[#22C55E]';
+    case 'past':
+    case 'now':
+      return 'text-[#CA8A04] dark:text-[#FACC15]';
+    case 'overdue':
+      return 'text-[#DC2626] dark:text-[#F87171]';
+    case 'neutral':
+    default:
+      return 'text-[#0F172A] dark:text-[#F8FAFC]';
+  }
+}
+
+export const MultitaskingClockPip = forwardRef<
+  MultitaskingClockPipHandle,
+  MultitaskingClockPipProps
+>(({ machineName, lastPickedStart, lastPickTone, isToday, onOpenStateChange, onNotify }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -264,6 +292,23 @@ export const MultitaskingClockPip: React.FC<MultitaskingClockPipProps> = ({
 
   const isAnyOpen = pipActive || fallbackOpen;
 
+  const toggleFnRef = useRef<() => Promise<void>>(handleTogglePip);
+  toggleFnRef.current = handleTogglePip;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      toggle: () => {
+        void toggleFnRef.current();
+      },
+    }),
+    []
+  );
+
+  useEffect(() => {
+    onOpenStateChange?.(isAnyOpen);
+  }, [isAnyOpen, onOpenStateChange]);
+
   return (
     <>
       {/* Hidden canvas + video used for Browser Native Picture-in-Picture */}
@@ -288,32 +333,32 @@ export const MultitaskingClockPip: React.FC<MultitaskingClockPipProps> = ({
         <div
           ref={popupCardRef}
           role="dialog"
-          aria-label="Đồng hồ đa nhiệm"
+          aria-label="Đồng hồ nổi"
           style={
             dragPos
               ? { left: dragPos.x, top: dragPos.y, right: 'auto', bottom: 'auto' }
               : undefined
           }
-          className="no-print fixed bottom-20 right-5 z-50 w-[320px] rounded-xl border border-slate-700 bg-[#0B1220] text-slate-100 shadow-2xl overflow-hidden select-none"
+          className="no-print fixed bottom-5 right-5 z-50 w-[320px] rounded-xl border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-[#0B1220] text-[#0F172A] dark:text-slate-100 shadow-[0_14px_34px_rgba(8,53,120,0.18)] dark:shadow-2xl overflow-hidden select-none"
         >
           <div
             onPointerDown={handleStartDrag}
-            className="flex items-center justify-between px-3.5 py-2 bg-[#111A2E] border-b border-slate-800 cursor-grab active:cursor-grabbing"
+            className="flex items-center justify-between px-3.5 py-2 bg-[#E8F1FC] dark:bg-[#111A2E] border-b border-[#C7D6E8] dark:border-slate-800 cursor-grab active:cursor-grabbing"
           >
             <div className="flex items-center gap-2 min-w-0">
-              <GripHorizontal className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-700/80 text-[10px] font-bold tracking-wider text-slate-200 uppercase">
+              <GripHorizontal className="w-3.5 h-3.5 text-[#475569] dark:text-slate-400 shrink-0" />
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#DCEBFF] dark:bg-slate-700/80 text-[10px] font-bold tracking-wider text-[#083578] dark:text-slate-200 uppercase">
                 TRỰC TIẾP
               </span>
-              <span className="text-[11px] font-semibold text-slate-400 truncate">
+              <span className="text-[11px] font-semibold text-[#334155] dark:text-slate-400 truncate">
                 {machineName}
               </span>
             </div>
             <button
               type="button"
               onClick={() => setFallbackOpen(false)}
-              aria-label="Đóng đồng hồ đa nhiệm"
-              className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Đóng đồng hồ nổi"
+              className="p-1 rounded-md text-[#475569] dark:text-slate-400 hover:text-[#083578] dark:hover:text-white hover:bg-[#DCEBFF] dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -321,46 +366,32 @@ export const MultitaskingClockPip: React.FC<MultitaskingClockPipProps> = ({
 
           <div className="px-4 py-3.5 space-y-3">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm font-semibold text-slate-400">Giờ hiện tại:</span>
-              <span className="font-mono text-2xl font-extrabold tabular-nums text-[#149CE0]">
+              <span className="text-sm font-semibold text-[#475569] dark:text-slate-400">
+                Giờ hiện tại:
+              </span>
+              <span className="font-mono text-2xl font-extrabold tabular-nums text-[#083578] dark:text-[#38BDF8]">
                 {nowText}
               </span>
             </div>
-            <div className="pt-2.5 border-t border-slate-800/80 flex items-baseline justify-between gap-3">
-              <span className="text-sm font-semibold text-slate-400">Giờ đã chọn:</span>
+            <div className="pt-2.5 border-t border-[#E2EAF2] dark:border-slate-800/80 flex items-baseline justify-between gap-3">
+              <span className="text-sm font-semibold text-[#475569] dark:text-slate-400">
+                Giờ đã chọn:
+              </span>
               <span
-                style={{ color: getLastPickHex(lastPickedStart, lastPickTone) }}
-                className="font-mono text-2xl font-extrabold tabular-nums"
+                className={`font-mono text-2xl font-extrabold tabular-nums ${getLastPickClass(
+                  lastPickedStart,
+                  lastPickTone
+                )}`}
               >
                 {lastPickedStart || '--:--'}
               </span>
             </div>
-            <div className="h-0.5 w-full rounded-full bg-emerald-500/80" />
+            <div className="h-0.5 w-full rounded-full bg-[#0D4EA6]/80 dark:bg-emerald-500/80" />
           </div>
         </div>
       )}
-
-      {/* Floating Bottom-Right Launcher Button */}
-      <button
-        type="button"
-        onClick={() => void handleTogglePip()}
-        title={
-          isAnyOpen
-            ? 'Đang bật đồng hồ đa nhiệm (nhấn để tắt)'
-            : 'Mở cửa sổ đồng hồ nổi luôn hiển thị trên các ứng dụng khác'
-        }
-        className={`no-print fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white shadow-[0_6px_18px_rgba(22,163,74,0.34)] transition-all cursor-pointer whitespace-nowrap ${
-          isAnyOpen
-            ? 'bg-[#083578] hover:bg-[#06275B] ring-2 ring-emerald-400/70'
-            : 'bg-[#16A34A] hover:bg-[#15803D]'
-        }`}
-      >
-        <Tv className="w-4 h-4 shrink-0" aria-hidden="true" />
-        <span>{isAnyOpen ? 'Đóng đồng hồ đa nhiệm' : 'Mở đồng hồ đa nhiệm'}</span>
-        {isAnyOpen && (
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-        )}
-      </button>
     </>
   );
-};
+});
+
+MultitaskingClockPip.displayName = 'MultitaskingClockPip';

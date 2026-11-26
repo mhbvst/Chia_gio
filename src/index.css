@@ -48,6 +48,51 @@
   }
 }
 
+/* Dual independent scrollbars (outer page + schedule table) */
+.dual-scroll {
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(13, 78, 166, 0.36) rgba(199, 214, 232, 0.28);
+  scrollbar-gutter: stable;
+}
+
+.dual-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.dual-scroll::-webkit-scrollbar-track {
+  background: rgba(199, 214, 232, 0.25);
+  border-radius: 9999px;
+}
+
+.dual-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(13, 78, 166, 0.36);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.dual-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(8, 53, 120, 0.62);
+}
+
+.dark .dual-scroll {
+  scrollbar-color: rgba(56, 189, 248, 0.38) rgba(15, 23, 42, 0.5);
+}
+
+.dark .dual-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.dark .dual-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(56, 189, 248, 0.38);
+}
+
+.dark .dual-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(56, 189, 248, 0.65);
+}
+
 /* Accessible clinical checkbox */
 .xq-checkbox {
   appearance: none;
@@ -235,10 +280,15 @@ table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell[data-now="tru
     background: #FFFFFF !important;
   }
 
-  .print-table-wrap {
+  .print-table-wrap,
+  .print-scroll-reset {
+    height: auto !important;
     max-height: none !important;
     min-height: 0 !important;
     overflow: visible !important;
+  }
+
+  .print-table-wrap {
     border: 1px solid #94A3B8 !important;
   }
 

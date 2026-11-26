@@ -3,6 +3,7 @@ import {
   Clock3,
   FileSpreadsheet,
   LocateFixed,
+  PictureInPicture2,
   Printer,
 } from 'lucide-react';
 import { MachineConfig, ScheduleRow } from '../data/schedules';
@@ -21,11 +22,13 @@ interface ScheduleTableProps {
   nowTick: number;
   lastPickedStart: string | null;
   lastPickTone?: 'empty' | 'neutral' | 'now' | 'past' | 'overdue' | 'upcoming';
+  floatingClockOpen?: boolean;
   pendingSlots: Record<string, boolean>;
   onSlotClick: (row: ScheduleRow, session: 'm' | 'a', nextChecked: boolean) => void;
   onPrint: () => void;
   onCopy: (visibleRows: ScheduleRow[]) => void;
   onSwitchMobileSegment?: (seg: 'morning' | 'afternoon') => void;
+  onToggleFloatingClock?: () => void;
 }
 
 export const ScheduleTable: React.FC<ScheduleTableProps> = ({
@@ -40,46 +43,190 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   nowTick,
   lastPickedStart,
   lastPickTone = 'empty',
+  floatingClockOpen = false,
   pendingSlots,
   onSlotClick,
   onPrint,
   onCopy,
   onSwitchMobileSegment,
+  onToggleFloatingClock,
 }) => {
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
-  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const cardShellRef = useRef<HTMLElement | null>(null);
   const theadRef = useRef<HTMLTableSectionElement | null>(null);
   const grpRowRef = useRef<HTMLTableRowElement | null>(null);
   const rowRefs = useRef<Record<number, HTMLTableRowElement | null>>({});
-  const [toolbarHeight, setToolbarHeight] = useState<number>(68);
   const [grpHeight, setGrpHeight] = useState<number>(33);
   const [pendingScrollStt, setPendingScrollStt] = useState<number | null>(null);
   const [flashStt, setFlashStt] = useState<number | null>(null);
 
   useEffect(() => {
-    const tbEl = toolbarRef.current;
     const grpEl = grpRowRef.current;
-    if (!tbEl && !grpEl) return;
+    if (!grpEl) return;
     const syncHeights = () => {
-      if (tbEl) {
-        const h = Math.floor(tbEl.getBoundingClientRect().height);
-        if (h > 0) setToolbarHeight(h);
-      }
-      if (grpEl) {
-        const gh = Math.floor(grpEl.getBoundingClientRect().height);
-        if (gh > 0) setGrpHeight(gh);
-      }
+      const gh = Math.floor(grpEl.getBoundingClientRect().height);
+      if (gh > 0) setGrpHeight(gh);
     };
     syncHeights();
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(syncHeights);
-      if (tbEl) ro.observe(tbEl);
-      if (grpEl) ro.observe(grpEl);
+      ro.observe(grpEl);
       return () => ro.disconnect();
     }
     window.addEventListener('resize', syncHeights);
     return () => window.removeEventListener('resize', syncHeights);
   }, [loading]);
+
+  // Khi cuộn xuống từ bên trong bảng: cuộn thanh cuộn bên ngoài xuống hết mượt mà trước, rồi mới cuộn bảng bên trong
+  useEffect(() => {
+    const inner = tableScrollRef.current;
+    if (!inner) return;
+
+    const getOuter = () =>
+      inner.closest('[data-outer-scroll="true"]') as HTMLElement | null;
+
+    let rafId: number | null = null;
+    let lastTs = 0;
+    let smoothTop = 0;
+    let targetTop = 0;
+    let lastWrittenTop = -1;
+    let pendingInner = 0;
+
+    const stopAnim = () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      pendingInner = 0;
+      lastWrittenTop = -1;
+    };
+
+    const stepAnim = (ts: number) => {
+      const outer = getOuter();
+      if (!outer) {
+        stopAnim();
+        return;
+      }
+
+      // Nếu người dùng tự kéo thanh cuộn ngoài trong lúc đang chạy hiệu ứng, dừng ngay để tránh giật
+      if (lastWrittenTop >= 0 && Math.abs(outer.scrollTop - lastWrittenTop) > 3) {
+        stopAnim();
+        return;
+      }
+
+      const dt = lastTs > 0 ? Math.min(0.05, (ts - lastTs) / 1000) : 1 / 60;
+      lastTs = ts;
+
+      const maxOuterTop = Math.max(0, outer.scrollHeight - outer.clientHeight);
+      if (targetTop > maxOuterTop) targetTop = maxOuterTop;
+
+      const diff = targetTop - smoothTop;
+      if (Math.abs(diff) <= 0.6) {
+        outer.scrollTop = targetTop;
+        const leftover = pendingInner;
+        stopAnim();
+        if (leftover > 0) {
+          inner.scrollTop += leftover;
+        }
+        return;
+      }
+
+      // Nội suy hàm mũ chuẩn hóa theo thời gian (mượt đều trên cả 60Hz và 120Hz)
+      const factor = 1 - Math.exp(-20 * dt);
+      smoothTop += diff * factor;
+      outer.scrollTop = smoothTop;
+      lastWrittenTop = outer.scrollTop;
+      rafId = window.requestAnimationFrame(stepAnim);
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) return;
+      let dy = e.deltaY;
+      if (e.deltaMode === 1) dy *= 16;
+      else if (e.deltaMode === 2) dy *= inner.clientHeight;
+      if (dy === 0) return;
+
+      let dx = e.deltaX;
+      if (e.deltaMode === 1) dx *= 16;
+      else if (e.deltaMode === 2) dx *= inner.clientWidth;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dy) < 2) return;
+
+      const outer = getOuter();
+      if (!outer) return;
+
+      // Nếu đảo chiều cuộn lên trong lúc ngoại đang trượt xuống, dừng mượt để phản hồi ngay
+      if (dy < 0) {
+        stopAnim();
+        return;
+      }
+
+      const maxOuterTop = Math.max(0, outer.scrollHeight - outer.clientHeight);
+      const currentTarget = rafId !== null ? targetTop : outer.scrollTop;
+      const remOuterDown = maxOuterTop - currentTarget;
+
+      if (remOuterDown > 1 || (rafId !== null && outer.scrollTop < maxOuterTop - 1)) {
+        e.preventDefault();
+        if (rafId === null) {
+          smoothTop = outer.scrollTop;
+          targetTop = outer.scrollTop;
+          lastWrittenTop = outer.scrollTop;
+          lastTs = 0;
+        }
+        const addOuter = Math.min(dy, Math.max(0, maxOuterTop - targetTop));
+        targetTop += addOuter;
+        const leftover = dy - addOuter;
+        if (leftover > 0) {
+          pendingInner += leftover;
+        }
+        if (rafId === null) {
+          rafId = window.requestAnimationFrame(stepAnim);
+        }
+      }
+    };
+
+    let lastTouchY: number | null = null;
+    const handleTouchStart = (e: TouchEvent) => {
+      stopAnim();
+      lastTouchY = e.touches.length === 1 ? e.touches[0].clientY : null;
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1 || lastTouchY === null) return;
+      const curY = e.touches[0].clientY;
+      const dy = lastTouchY - curY;
+      lastTouchY = curY;
+      if (dy <= 0) return;
+
+      const outer = getOuter();
+      if (!outer) return;
+
+      const maxOuterTop = Math.max(0, outer.scrollHeight - outer.clientHeight);
+      const remOuterDown = maxOuterTop - outer.scrollTop;
+      if (remOuterDown > 1) {
+        if (e.cancelable) e.preventDefault();
+        const moveOuter = Math.min(dy, remOuterDown);
+        outer.scrollTop += moveOuter;
+        const leftover = dy - moveOuter;
+        if (leftover > 0) {
+          inner.scrollTop += leftover;
+        }
+      }
+    };
+    const handleTouchEnd = () => {
+      lastTouchY = null;
+    };
+
+    inner.addEventListener('wheel', handleWheel, { passive: false });
+    inner.addEventListener('touchstart', handleTouchStart, { passive: true });
+    inner.addEventListener('touchmove', handleTouchMove, { passive: false });
+    inner.addEventListener('touchend', handleTouchEnd, { passive: true });
+    return () => {
+      stopAnim();
+      inner.removeEventListener('wheel', handleWheel);
+      inner.removeEventListener('touchstart', handleTouchStart);
+      inner.removeEventListener('touchmove', handleTouchMove);
+      inner.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, []);
 
   const rows = machine.rows;
 
@@ -131,19 +278,24 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   }, [isToday, machine.rows, nowTick]);
 
   const scrollToRow = (stt: number) => {
+    const container = tableScrollRef.current;
     const rowEl = rowRefs.current[stt];
-    if (!rowEl) return;
+    if (!container || !rowEl) return;
 
-    const tbH = toolbarRef.current ? Math.floor(toolbarRef.current.getBoundingClientRect().height) : toolbarHeight;
+    cardShellRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+
     const theadHeight = theadRef.current?.offsetHeight || 72;
-    const stickyTop = tbH + theadHeight;
-    const rect = rowEl.getBoundingClientRect();
-    const rowTopOnPage = window.scrollY + rect.top;
-    const visibleBodyHeight = Math.max(120, window.innerHeight - stickyTop);
+    const containerRect = container.getBoundingClientRect();
+    const rowRect = rowEl.getBoundingClientRect();
+    const rowOffsetInContainer = container.scrollTop + (rowRect.top - containerRect.top);
+    const visibleBodyHeight = Math.max(120, container.clientHeight - theadHeight);
     const targetTop =
-      rowTopOnPage - stickyTop - visibleBodyHeight / 2 + rect.height / 2;
+      rowOffsetInContainer - theadHeight - visibleBodyHeight / 2 + rowRect.height / 2;
 
-    window.scrollTo({
+    container.scrollTo({
       top: Math.max(0, targetTop),
       behavior: 'smooth',
     });
@@ -195,14 +347,14 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
 
   const liveClockVN = formatTimeVN(new Date(nowTick));
   const lastPickColorClass = !lastPickedStart
-    ? 'text-[#475569] dark:text-slate-400'
+    ? 'text-slate-400 dark:text-slate-500'
+    : lastPickTone === 'upcoming'
+    ? 'text-[#16A34A] dark:text-[#22C55E]'
+    : lastPickTone === 'past' || lastPickTone === 'now'
+    ? 'text-[#CA8A04] dark:text-[#FACC15]'
     : lastPickTone === 'overdue'
-    ? 'text-red-700 dark:text-red-300'
-    : lastPickTone === 'now'
-    ? 'text-emerald-700 dark:text-emerald-300'
-    : lastPickTone === 'past'
-    ? 'text-amber-700 dark:text-amber-300'
-    : 'text-[#083578] dark:text-sky-300';
+    ? 'text-[#DC2626] dark:text-[#F87171]'
+    : 'text-[#0F172A] dark:text-slate-50';
 
   const cellPad = density === 'compact' ? 'py-1.5 px-2.5' : 'py-2.5 px-3';
   const timeText = density === 'compact' ? 'text-[14px]' : 'text-[15.5px]';
@@ -211,10 +363,11 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
 
   return (
     <section
+      ref={cardShellRef}
       id={machine.id}
       role="tabpanel"
       aria-label={machine.fullTitle}
-      className="print-card-shell bg-white dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800 rounded-xl overflow-x-clip shadow-[0_2px_6px_rgba(8,53,120,0.06)]"
+      className="print-card-shell bg-white dark:bg-slate-900 border border-[#C7D6E8] dark:border-slate-800 rounded-xl overflow-hidden shadow-[0_2px_6px_rgba(8,53,120,0.06)]"
     >
       {/* Print-only hospital header */}
       <div className="hidden print-only px-4 pt-3 pb-2 border-b border-slate-400">
@@ -234,90 +387,131 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
       </div>
 
       {/* Table toolbar header */}
-      <div
-        ref={toolbarRef}
-        className="no-print sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 rounded-t-xl border-b border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(8,53,120,0.04)]"
-      >
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#334155] dark:text-slate-400">
-            <span className="font-bold text-[#0D4EA6] dark:text-sky-400">Chẩn đoán hình ảnh</span>
-            <span aria-hidden="true">·</span>
-            <span>Phụ trách: {machine.supervisor}</span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono font-bold tabular-nums text-[#0F172A] dark:text-slate-300">
-              <span className="md:hidden">
-                {mobileRowCount} ca ({mobileSegment === 'morning' ? 'Sáng' : 'Chiều'})
+      <div className="no-print flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5 px-4 sm:px-5 py-3.5 border-b border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(8,53,120,0.04)]">
+        {/* Left: Machine identity + action controls */}
+        <div className="min-w-0 space-y-2.5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#334155] dark:text-slate-400">
+              <span className="font-bold text-[#0D4EA6] dark:text-sky-400">Chẩn đoán hình ảnh</span>
+              <span aria-hidden="true">·</span>
+              <span>Phụ trách: {machine.supervisor}</span>
+              <span aria-hidden="true">·</span>
+              <span className="font-mono font-bold tabular-nums text-[#0F172A] dark:text-slate-300">
+                <span className="md:hidden">
+                  {mobileRowCount} ca ({mobileSegment === 'morning' ? 'Sáng' : 'Chiều'})
+                </span>
+                <span className="hidden md:inline">
+                  {rows.length} hàng · Sáng {morningCount} / Chiều {afternoonCount} ca
+                </span>
               </span>
-              <span className="hidden md:inline">
-                {rows.length} hàng · Sáng {morningCount} / Chiều {afternoonCount} ca
-              </span>
-            </span>
+            </div>
+            <h2 className="text-base sm:text-lg font-extrabold text-[#083578] dark:text-slate-100 mt-0.5 truncate">
+              {machine.fullTitle}
+            </h2>
           </div>
-          <h2 className="text-base sm:text-lg font-extrabold text-[#083578] dark:text-slate-100 mt-0.5 truncate">
-            {machine.fullTitle}
-          </h2>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isToday && jumpTarget && !loading && (
+              <button
+                type="button"
+                onClick={handleJumpToNow}
+                title="Tự động cuộn tới vị trí thời gian hiện tại"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg border border-[#93BCEB] dark:border-sky-800 bg-[#DCEBFF] dark:bg-sky-950/50 text-[#083578] dark:text-sky-200 hover:bg-[#C6DFFF] dark:hover:bg-sky-900/60 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <LocateFixed className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400" />
+                <span>Tới ca hiện tại</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onPrint}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#EEF4FB] dark:hover:bg-slate-700/70 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Printer className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400" />
+              <span>In / PDF</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onCopy(rows)}
+              style={{ backgroundColor: 'var(--accent-500)' }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg text-white hover:opacity-95 transition-opacity cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Xuất Excel</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        {/* Right: Enlarged modern clinical dual-time console (hidden when floating clock is open) */}
+        {!floatingClockOpen ? (
           <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-[#EEF4FB] dark:bg-slate-800 whitespace-nowrap shrink-0"
-            title="Giờ bắt đầu của ca chụp đã chọn sau cùng / Đồng hồ thời gian thực (Giờ Việt Nam)"
+            className="lg:ml-auto shrink-0 rounded-2xl border border-[#B6CBE3] dark:border-slate-800 bg-white dark:bg-[#0B1220] shadow-[0_6px_18px_-6px_rgba(8,53,120,0.12)] dark:shadow-[0_8px_24px_-6px_rgba(8,53,120,0.34)] overflow-hidden"
+            title="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực (Giờ Việt Nam)"
             aria-label="Giờ bắt đầu của ca chụp đã chọn sau cùng và đồng hồ thời gian thực"
           >
-            <Clock3 className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400 shrink-0" />
-            <div className="leading-tight">
-              <div className="text-[10px] font-bold uppercase tracking-wide text-[#334155] dark:text-slate-400">
-                Đã chọn sau cùng / Hiện tại
+            <div className="flex items-center justify-between gap-4 px-4 sm:px-5 py-2 border-b border-[#C7D6E8] dark:border-slate-800/90 bg-[#E8F1FC] dark:bg-[#111A2E]">
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-[#083578] dark:text-slate-300 uppercase whitespace-nowrap">
+                <Clock3 className="w-3.5 h-3.5 text-[#0D4EA6] dark:text-[#38BDF8] shrink-0" aria-hidden="true" />
+                <span>Đồng hồ ca chụp</span>
               </div>
-              <div className="font-mono text-xs sm:text-sm font-extrabold tabular-nums flex items-center gap-1.5">
-                <span className={lastPickColorClass}>
+              {onToggleFloatingClock && (
+                <button
+                  type="button"
+                  onClick={onToggleFloatingClock}
+                  aria-pressed={false}
+                  title="Chuyển đồng hồ thành cửa sổ nổi luôn hiển thị"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border border-[#93BCEB] dark:border-sky-400/35 bg-white dark:bg-sky-500/15 hover:bg-[#DCEBFF] dark:hover:bg-sky-500/25 text-[#083578] dark:text-sky-300 transition-colors cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                >
+                  <PictureInPicture2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>Đồng hồ nổi</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 divide-x divide-[#C7D6E8] dark:divide-slate-800">
+              <div className="px-5 sm:px-6 py-3.5 sm:py-4 flex flex-col justify-center min-w-[160px] sm:min-w-[196px] bg-white dark:bg-transparent">
+                <div className="text-xs font-semibold text-[#475569] dark:text-slate-400 whitespace-nowrap">
+                  Đã chọn sau cùng
+                </div>
+                <div
+                  className={`mt-1.5 font-mono text-[32px] sm:text-[38px] xl:text-[42px] leading-none font-extrabold tabular-nums tracking-tight ${lastPickColorClass}`}
+                >
                   {lastPickedStart || '--:--'}
-                </span>
-                <span className="text-[#64748B] dark:text-slate-500" aria-hidden="true">
-                  /
-                </span>
-                <span className="text-[#0F172A] dark:text-slate-100">
+                </div>
+              </div>
+
+              <div className="px-5 sm:px-6 py-3.5 sm:py-4 flex flex-col justify-center min-w-[186px] sm:min-w-[232px] bg-[#F2F7FF] dark:bg-slate-900/55">
+                <div className="text-xs font-semibold text-[#0D4EA6] dark:text-sky-300/90 whitespace-nowrap">
+                  Giờ hiện tại (VN)
+                </div>
+                <div className="mt-1.5 font-mono text-[32px] sm:text-[38px] xl:text-[42px] leading-none font-extrabold tabular-nums tracking-tight text-[#083578] dark:text-[#38BDF8]">
                   {liveClockVN}
-                </span>
+                </div>
               </div>
             </div>
           </div>
-
-          {isToday && jumpTarget && !loading && (
+        ) : (
+          onToggleFloatingClock && (
             <button
               type="button"
-              onClick={handleJumpToNow}
-              title="Tự động cuộn tới vị trí thời gian hiện tại"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg border border-[#93BCEB] dark:border-sky-800 bg-[#DCEBFF] dark:bg-sky-950/50 text-[#083578] dark:text-sky-200 hover:bg-[#C6DFFF] dark:hover:bg-sky-900/60 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              onClick={onToggleFloatingClock}
+              aria-pressed={true}
+              title="Đóng cửa sổ đồng hồ nổi và hiện lại đồng hồ gốc"
+              className="lg:ml-auto self-start lg:self-center shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer whitespace-nowrap"
             >
-              <LocateFixed className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400" />
-              <span>Tới ca hiện tại</span>
+              <PictureInPicture2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>Đóng đồng hồ nổi · Hiện đồng hồ</span>
             </button>
-          )}
-          <button
-            type="button"
-            onClick={onPrint}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg border border-[#B6CBE3] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-slate-200 hover:bg-[#EEF4FB] dark:hover:bg-slate-700/70 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-          >
-            <Printer className="w-4 h-4 text-[#0D4EA6] dark:text-sky-400" />
-            <span>In / PDF</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onCopy(rows)}
-            style={{ backgroundColor: 'var(--accent-500)' }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg text-white hover:opacity-95 transition-opacity cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Xuất Excel</span>
-          </button>
-        </div>
+          )
+        )}
       </div>
 
-      {/* Single-page scrollable Schedule Table */}
+      {/* Dedicated vertically scrollable Schedule Table */}
       <div
         ref={tableScrollRef}
-        className="print-table-wrap overflow-x-clip rounded-b-xl"
+        className={`print-table-wrap dual-scroll ${
+          floatingClockOpen ? 'h-[calc(100dvh-212px)]' : 'h-[calc(100dvh-248px)]'
+        } min-h-[340px] max-h-[760px] overflow-y-auto overflow-x-auto bg-white dark:bg-slate-900`}
       >
         {loading ? (
           <div className="p-4 space-y-2" aria-busy="true" aria-label="Đang tải dữ liệu lịch chụp">
@@ -346,59 +540,59 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
               <tr ref={grpRowRef}>
                 <th
                   rowSpan={2}
-                  style={{ top: toolbarHeight }}
+                  style={{ top: 0 }}
                   className="sticky z-20 bg-[#DCEBFF] dark:bg-slate-800 text-[#083578] dark:text-slate-200 text-xs font-extrabold uppercase tracking-wider px-3 py-2.5 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center"
                 >
                   STT
                 </th>
                 <th
                   colSpan={3}
-                  style={{ top: toolbarHeight }}
-                  className={`sticky z-20 bg-[#D0E4FF] dark:bg-sky-950/80 text-[#083578] dark:text-sky-200 text-xs leading-4 font-extrabold uppercase tracking-wider px-3 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center ${hideMorningMobile}`}
+                  style={{ top: 0 }}
+                  className={`sticky z-20 bg-[#D0E4FF] dark:bg-sky-950 text-[#083578] dark:text-sky-200 text-xs leading-4 font-extrabold uppercase tracking-wider px-3 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-700 text-center ${hideMorningMobile}`}
                 >
                   BUỔI SÁNG
                 </th>
                 <th
                   colSpan={3}
-                  style={{ top: toolbarHeight }}
-                  className={`sticky z-20 bg-[#DCEBFF] dark:bg-blue-950/80 text-[#083578] dark:text-blue-200 text-xs leading-4 font-extrabold uppercase tracking-wider px-3 py-2 border-b border-[#B6CBE3] dark:border-slate-700 text-center ${hideAfternoonMobile}`}
+                  style={{ top: 0 }}
+                  className={`sticky z-20 bg-[#DCEBFF] dark:bg-blue-950 text-[#083578] dark:text-blue-200 text-xs leading-4 font-extrabold uppercase tracking-wider px-3 py-2 border-b border-[#B6CBE3] dark:border-slate-700 text-center ${hideAfternoonMobile}`}
                 >
                   BUỔI CHIỀU
                 </th>
               </tr>
               <tr>
                 <th
-                  style={{ top: toolbarHeight + grpHeight }}
+                  style={{ top: grpHeight }}
                   className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
                 >
                   TG bắt đầu
                 </th>
                 <th
-                  style={{ top: toolbarHeight + grpHeight }}
+                  style={{ top: grpHeight }}
                   className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
                 >
                   TG kết thúc
                 </th>
                 <th
-                  style={{ top: toolbarHeight + grpHeight }}
+                  style={{ top: grpHeight }}
                   className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideMorningMobile}`}
                 >
                   Chọn
                 </th>
                 <th
-                  style={{ top: toolbarHeight + grpHeight }}
+                  style={{ top: grpHeight }}
                   className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
                 >
                   TG bắt đầu
                 </th>
                 <th
-                  style={{ top: toolbarHeight + grpHeight }}
+                  style={{ top: grpHeight }}
                   className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-r border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
                 >
                   TG kết thúc
                 </th>
                 <th
-                  style={{ top: toolbarHeight + grpHeight }}
+                  style={{ top: grpHeight }}
                   className={`sticky z-20 bg-[#EEF5FF] dark:bg-slate-900 text-[#0F172A] dark:text-slate-300 text-xs font-bold px-2.5 py-2 border-b border-[#B6CBE3] dark:border-slate-800 text-center ${hideAfternoonMobile}`}
                 >
                   Chọn

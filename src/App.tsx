@@ -45,7 +45,7 @@ import {
   compareDateWithToday,
   formatDateDisplayVN,
   getTodayKeyVN,
-  nowMinutesVN,
+  nowSecondsVN,
   parseHHMM,
 } from './utils/vnTime';
 import {
@@ -67,7 +67,10 @@ import {
 } from './components/Modals';
 import { ScheduleSettingsModal } from './components/ScheduleSettingsModal';
 import { ToastContainer, ToastItem } from './components/Toast';
-import { MultitaskingClockPip } from './components/MultitaskingClockPip';
+import {
+  MultitaskingClockPip,
+  MultitaskingClockPipHandle,
+} from './components/MultitaskingClockPip';
 import { exportScheduleExcel } from './utils/excelExport';
 import { exportSchedulePdf } from './utils/pdfExport';
 
@@ -194,6 +197,8 @@ export default function App() {
   const toastIdRef = useRef(1);
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const scheduleAreaRef = useRef<HTMLDivElement>(null);
+  const pipClockRef = useRef<MultitaskingClockPipHandle | null>(null);
+  const [floatingClockOpen, setFloatingClockOpen] = useState(false);
 
   const pushToast = useCallback((type: ToastItem['type'], message: string) => {
     const id = toastIdRef.current++;
@@ -499,11 +504,10 @@ export default function App() {
     void nowTick;
     const tMin = parseHHMM(lastPickedStart);
     if (tMin === null) return { label: '', tone: 'neutral' as const };
-    const diff = nowMinutesVN() - tMin;
-    if (diff === 0) return { label: 'Đang đến giờ', tone: 'now' as const };
-    if (diff > 30) return { label: 'Quá giờ > 30 phút', tone: 'overdue' as const };
-    if (diff > 0) return { label: 'Đã qua ≤ 30 phút', tone: 'past' as const };
-    return { label: 'Sắp tới', tone: 'upcoming' as const };
+    const deltaSec = tMin * 60 - nowSecondsVN();
+    if (deltaSec > 3) return { label: 'Lớn hơn giờ thực tế > 3 giây', tone: 'upcoming' as const };
+    if (deltaSec >= 0) return { label: 'Trong khoảng 3 giây đến bằng giờ thực tế', tone: 'past' as const };
+    return { label: 'Nhỏ hơn giờ thực tế', tone: 'overdue' as const };
   }, [lastPickedStart, isToday, viewedDateKey, nowTick]);
 
   // ===== Handlers =====
@@ -1135,10 +1139,10 @@ export default function App() {
   };
 
   return (
-    <div className="print-root min-h-screen flex bg-[#EEF4FB] dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 transition-colors">
+    <div className="print-root h-dvh overflow-hidden flex bg-[#EEF4FB] dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 transition-colors">
       {/* ===== Desktop Left Sidebar ===== */}
       <aside
-        className={`no-print hidden lg:block shrink-0 border-r border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 h-screen transition-[width] duration-200 ${
+        className={`no-print hidden lg:block shrink-0 border-r border-[#C7D6E8] dark:border-slate-800 bg-white dark:bg-slate-900 h-full transition-[width] duration-200 ${
           sidebarCollapsed ? 'w-[76px]' : 'w-[260px]'
         }`}
         aria-label="Thanh điều hướng chính"
@@ -1160,8 +1164,11 @@ export default function App() {
         </div>
       )}
 
-      {/* ===== Right Workspace Column (Header + Main Content) ===== */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      {/* ===== Right Workspace Column (Independent Page Vertical Scrollbar) ===== */}
+      <div
+        data-outer-scroll="true"
+        className="print-scroll-reset dual-scroll flex-1 min-w-0 h-full overflow-y-auto flex flex-col"
+      >
         {/* Top Header */}
         <header className="no-print relative z-30 bg-white dark:bg-slate-900 border-b border-[#C7D6E8] dark:border-slate-800 px-4 sm:px-6 py-3">
           <div className="max-w-[1360px] mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -1571,11 +1578,13 @@ export default function App() {
                 nowTick={nowTick}
                 lastPickedStart={lastPickedStart}
                 lastPickTone={lastPickStatus.tone}
+                floatingClockOpen={floatingClockOpen}
                 pendingSlots={pendingSlots}
                 onSlotClick={handleSlotClick}
                 onPrint={handleOpenPrintPdf}
                 onCopy={(rows) => handleExportExcel(rows)}
                 onSwitchMobileSegment={handleMobileSegment}
+                onToggleFloatingClock={() => pipClockRef.current?.toggle()}
               />
             </div>
           </div>
@@ -1671,10 +1680,12 @@ export default function App() {
       />
 
       <MultitaskingClockPip
+        ref={pipClockRef}
         machineName={activeMachineConfig.name}
         lastPickedStart={lastPickedStart}
         lastPickTone={lastPickStatus.tone}
         isToday={isToday}
+        onOpenStateChange={setFloatingClockOpen}
         onNotify={pushToast}
       />
 
