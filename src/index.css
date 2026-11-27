@@ -360,3 +360,12 @@ table.xq-print-table tbody tr:has(td.xq-a-cell:hover) td.xq-a-cell[data-now="tru
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Crisp pixel-art rendering for Pikachu game sprites without anti-aliasing blur */
+.pikachu-sprite-pixelated {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+

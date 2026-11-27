@@ -1,0 +1,227 @@
+{
+  "packId": "kanto-retro",
+  "packName": "Pikachu Classic Retro",
+  "version": "1.0.0",
+  "tileResolution": 108,
+  "sprites": [
+    {
+      "id": "pokemon_001",
+      "dexNo": 25,
+      "name": "Pikachu",
+      "src": "/assets/pikachu/pokemon_001.png"
+    },
+    {
+      "id": "pokemon_002",
+      "dexNo": 1,
+      "name": "Bulbasaur",
+      "src": "/assets/pikachu/pokemon_002.png"
+    },
+    {
+      "id": "pokemon_003",
+      "dexNo": 4,
+      "name": "Charmander",
+      "src": "/assets/pikachu/pokemon_003.png"
+    },
+    {
+      "id": "pokemon_004",
+      "dexNo": 8,
+      "name": "Wartortle",
+      "src": "/assets/pikachu/pokemon_004.png"
+    },
+    {
+      "id": "pokemon_005",
+      "dexNo": 12,
+      "name": "Butterfree",
+      "src": "/assets/pikachu/pokemon_005.png"
+    },
+    {
+      "id": "pokemon_006",
+      "dexNo": 15,
+      "name": "Beedrill",
+      "src": "/assets/pikachu/pokemon_006.png"
+    },
+    {
+      "id": "pokemon_007",
+      "dexNo": 35,
+      "name": "Clefairy",
+      "src": "/assets/pikachu/pokemon_007.png"
+    },
+    {
+      "id": "pokemon_008",
+      "dexNo": 52,
+      "name": "Meowth",
+      "src": "/assets/pikachu/pokemon_008.png"
+    },
+    {
+      "id": "pokemon_009",
+      "dexNo": 54,
+      "name": "Psyduck",
+      "src": "/assets/pikachu/pokemon_009.png"
+    },
+    {
+      "id": "pokemon_010",
+      "dexNo": 59,
+      "name": "Arcanine",
+      "src": "/assets/pikachu/pokemon_010.png"
+    },
+    {
+      "id": "pokemon_011",
+      "dexNo": 61,
+      "name": "Poliwhirl",
+      "src": "/assets/pikachu/pokemon_011.png"
+    },
+    {
+      "id": "pokemon_012",
+      "dexNo": 134,
+      "name": "Vaporeon",
+      "src": "/assets/pikachu/pokemon_012.png"
+    },
+    {
+      "id": "pokemon_013",
+      "dexNo": 136,
+      "name": "Flareon",
+      "src": "/assets/pikachu/pokemon_013.png"
+    },
+    {
+      "id": "pokemon_014",
+      "dexNo": 151,
+      "name": "Mew",
+      "src": "/assets/pikachu/pokemon_014.png"
+    },
+    {
+      "id": "pokemon_015",
+      "dexNo": 158,
+      "name": "Totodile",
+      "src": "/assets/pikachu/pokemon_015.png"
+    },
+    {
+      "id": "pokemon_016",
+      "dexNo": 152,
+      "name": "Chikorita",
+      "src": "/assets/pikachu/pokemon_016.png"
+    },
+    {
+      "id": "pokemon_017",
+      "dexNo": 183,
+      "name": "Marill",
+      "src": "/assets/pikachu/pokemon_017.png"
+    },
+    {
+      "id": "pokemon_018",
+      "dexNo": 10,
+      "name": "Caterpie",
+      "src": "/assets/pikachu/pokemon_018.png"
+    },
+    {
+      "id": "pokemon_019",
+      "dexNo": 17,
+      "name": "Pidgeotto",
+      "src": "/assets/pikachu/pokemon_019.png"
+    },
+    {
+      "id": "pokemon_020",
+      "dexNo": 30,
+      "name": "Nidorina",
+      "src": "/assets/pikachu/pokemon_020.png"
+    },
+    {
+      "id": "pokemon_021",
+      "dexNo": 116,
+      "name": "Horsea",
+      "src": "/assets/pikachu/pokemon_021.png"
+    },
+    {
+      "id": "pokemon_022",
+      "dexNo": 78,
+      "name": "Rapidash",
+      "src": "/assets/pikachu/pokemon_022.png"
+    },
+    {
+      "id": "pokemon_023",
+      "dexNo": 87,
+      "name": "Dewgong",
+      "src": "/assets/pikachu/pokemon_023.png"
+    },
+    {
+      "id": "pokemon_024",
+      "dexNo": 138,
+      "name": "Omanyte",
+      "src": "/assets/pikachu/pokemon_024.png"
+    },
+    {
+      "id": "pokemon_025",
+      "dexNo": 181,
+      "name": "Ampharos",
+      "src": "/assets/pikachu/pokemon_025.png"
+    },
+    {
+      "id": "pokemon_026",
+      "dexNo": 179,
+      "name": "Mareep",
+      "src": "/assets/pikachu/pokemon_026.png"
+    },
+    {
+      "id": "pokemon_027",
+      "dexNo": 186,
+      "name": "Politoed",
+      "src": "/assets/pikachu/pokemon_027.png"
+    },
+    {
+      "id": "pokemon_028",
+      "dexNo": 190,
+      "name": "Aipom",
+      "src": "/assets/pikachu/pokemon_028.png"
+    },
+    {
+      "id": "pokemon_029",
+      "dexNo": 177,
+      "name": "Natu",
+      "src": "/assets/pikachu/pokemon_029.png"
+    },
+    {
+      "id": "pokemon_030",
+      "dexNo": 165,
+      "name": "Ledyba",
+      "src": "/assets/pikachu/pokemon_030.png"
+    },
+    {
+      "id": "pokemon_031",
+      "dexNo": 225,
+      "name": "Delibird",
+      "src": "/assets/pikachu/pokemon_031.png"
+    },
+    {
+      "id": "pokemon_032",
+      "dexNo": 222,
+      "name": "Corsola",
+      "src": "/assets/pikachu/pokemon_032.png"
+    },
+    {
+      "id": "pokemon_033",
+      "dexNo": 207,
+      "name": "Gligar",
+      "src": "/assets/pikachu/pokemon_033.png"
+    },
+    {
+      "id": "pokemon_034",
+      "dexNo": 241,
+      "name": "Miltank",
+      "src": "/assets/pikachu/pokemon_034.png"
+    },
+    {
+      "id": "pokemon_035",
+      "dexNo": 175,
+      "name": "Togepi",
+      "src": "/assets/pikachu/pokemon_035.png"
+    },
+    {
+      "id": "pokemon_036",
+      "dexNo": 176,
+      "name": "Togetic",
+      "src": "/assets/pikachu/pokemon_036.png"
+    }
+  ],
+  "baseResolution": 48,
+  "scaleFactor": 4,
+  "scalingAlgorithm": "nearest-neighbor"
+}

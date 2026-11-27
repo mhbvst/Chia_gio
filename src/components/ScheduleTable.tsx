@@ -563,7 +563,7 @@ export const ScheduleTable = forwardRef<ScheduleTableHandle, ScheduleTableProps>
               <button
                 type="button"
                 onClick={onRequestQuickPick}
-                title="Chọn nhanh thời gian bắt đầu trống gần nhất với thời gian hiện tại (Phím T)"
+                title="Chọn nhanh giờ bắt đầu trống gần nhất, ưu tiên phút hiện tại nếu chưa được đánh dấu (Phím T)"
                 className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-bold rounded-lg border border-[#86EFAC] dark:border-emerald-800 bg-[#ECFDF5] dark:bg-emerald-950/45 text-[#047857] dark:text-emerald-200 hover:bg-[#D1FAE5] dark:hover:bg-emerald-900/50 transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 <CheckSquare className="w-3.5 h-3.5 text-[#059669] dark:text-emerald-400 shrink-0" />

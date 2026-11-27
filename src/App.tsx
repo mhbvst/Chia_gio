@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  Gamepad2,
   Lock,
   Menu,
   Palette,
@@ -17,6 +18,7 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react';
+import { RelaxMenu } from './relax/RelaxMenu';
 import radiologyBannerImg from './assets/images/xray_department_banner_1795454558629.jpg';
 import {
   MACHINES,
@@ -217,7 +219,8 @@ export default function App() {
     return saved && MACHINE_KEY_RE.test(saved) ? saved : 'TITAN2000';
   });
 
-  // ===== Sidebar state =====
+  // ===== Active Workspace Section & Sidebar state =====
+  const [activeSection, setActiveSection] = useState<'schedule' | 'relax'>('schedule');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
     () => localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1'
   );
@@ -658,6 +661,7 @@ export default function App() {
       return;
     }
     setActiveMachine(mk);
+    setActiveSection('schedule');
     setMobileSidebarOpen(false);
   };
 
@@ -753,14 +757,33 @@ export default function App() {
     if (loadingStates) return;
 
     const nowSec = nowSecondsVN();
-    let best: {
+    const nowMin = Math.floor(nowSec / 60);
+
+    type QuickPickCandidate = {
       row: ScheduleRow;
       session: 'm' | 'a';
       startTime: string;
       endTime: string;
       diffSec: number;
       absDiff: number;
-    } | null = null;
+      isCurrentMinute: boolean;
+    };
+
+    const isBetterCandidate = (
+      cand: QuickPickCandidate,
+      currentBest: QuickPickCandidate | null
+    ): boolean => {
+      if (!currentBest) return true;
+      if (cand.isCurrentMinute !== currentBest.isCurrentMinute) {
+        return cand.isCurrentMinute;
+      }
+      if (cand.absDiff !== currentBest.absDiff) {
+        return cand.absDiff < currentBest.absDiff;
+      }
+      return cand.diffSec >= 0 && currentBest.diffSec < 0;
+    };
+
+    let best: QuickPickCandidate | null = null;
 
     for (const row of activeMachineConfig.rows) {
       if (row.morningStart) {
@@ -769,20 +792,17 @@ export default function App() {
           const min = parseHHMM(row.morningStart);
           if (min !== null) {
             const diffSec = min * 60 - nowSec;
-            const absDiff = Math.abs(diffSec);
-            if (
-              !best ||
-              absDiff < best.absDiff ||
-              (absDiff === best.absDiff && diffSec >= 0 && best.diffSec < 0)
-            ) {
-              best = {
-                row,
-                session: 'm',
-                startTime: row.morningStart,
-                endTime: row.morningEnd,
-                diffSec,
-                absDiff,
-              };
+            const cand: QuickPickCandidate = {
+              row,
+              session: 'm',
+              startTime: row.morningStart,
+              endTime: row.morningEnd,
+              diffSec,
+              absDiff: Math.abs(diffSec),
+              isCurrentMinute: min === nowMin,
+            };
+            if (isBetterCandidate(cand, best)) {
+              best = cand;
             }
           }
         }
@@ -793,20 +813,17 @@ export default function App() {
           const min = parseHHMM(row.afternoonStart);
           if (min !== null) {
             const diffSec = min * 60 - nowSec;
-            const absDiff = Math.abs(diffSec);
-            if (
-              !best ||
-              absDiff < best.absDiff ||
-              (absDiff === best.absDiff && diffSec >= 0 && best.diffSec < 0)
-            ) {
-              best = {
-                row,
-                session: 'a',
-                startTime: row.afternoonStart,
-                endTime: row.afternoonEnd,
-                diffSec,
-                absDiff,
-              };
+            const cand: QuickPickCandidate = {
+              row,
+              session: 'a',
+              startTime: row.afternoonStart,
+              endTime: row.afternoonEnd,
+              diffSec,
+              absDiff: Math.abs(diffSec),
+              isCurrentMinute: min === nowMin,
+            };
+            if (isBetterCandidate(cand, best)) {
+              best = cand;
             }
           }
         }
@@ -822,7 +839,9 @@ export default function App() {
     }
 
     let relativeNote = 'Trùng thời gian hiện tại';
-    if (best.diffSec > 60) {
+    if (best.diffSec !== 0 && best.isCurrentMinute) {
+      relativeNote = `Trùng phút hiện tại (đã qua ${Math.abs(best.diffSec)} giây)`;
+    } else if (best.diffSec > 60) {
       relativeNote = `Còn khoảng ${Math.round(best.diffSec / 60)} phút nữa so với hiện tại`;
     } else if (best.diffSec > 0) {
       relativeNote = `Còn ${best.diffSec} giây nữa so với hiện tại`;
@@ -884,6 +903,7 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (activeSection !== 'schedule') return;
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
       if (hasOpenModal) return;
 
@@ -915,11 +935,12 @@ export default function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [hasOpenModal]);
+  }, [hasOpenModal, activeSection]);
 
   const handleViewToday = () => {
     const targetToday = todayKey || getTodayKeyVN();
     setDateInput(targetToday);
+    setActiveSection('schedule');
     void loadDateStates(targetToday, false);
     setMobileSidebarOpen(false);
     scheduleAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1415,6 +1436,40 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          {/* Group 3: Relax & Play */}
+          <div>
+            {!compact && (
+              <div className="px-2.5 mb-2 text-[11px] font-bold tracking-wider text-[#334155] dark:text-slate-400 uppercase">
+                Giải trí
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSection('relax');
+                setMobileSidebarOpen(false);
+              }}
+              aria-current={activeSection === 'relax' ? 'page' : undefined}
+              title="Thư giãn | Relax"
+              className={`w-full flex items-center ${
+                compact ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
+              } rounded-lg text-sm font-bold transition-colors cursor-pointer ${
+                activeSection === 'relax'
+                  ? 'bg-[#DCEBFF] dark:bg-amber-400/15 text-[#083578] dark:text-amber-300 border border-[#93BCEB] dark:border-amber-400/35'
+                  : 'text-[#0F172A] dark:text-slate-300 hover:bg-[#EEF4FB] dark:hover:bg-slate-800'
+              }`}
+            >
+              <Gamepad2
+                className={`w-4 h-4 shrink-0 ${
+                  activeSection === 'relax'
+                    ? 'text-[#0D4EA6] dark:text-amber-300'
+                    : 'text-[#0D4EA6] dark:text-sky-400'
+                }`}
+              />
+              {!compact && <span className="truncate">Thư giãn | Relax</span>}
+            </button>
+          </div>
         </div>
 
         {/* Sidebar Workstation Footer */}
@@ -1508,14 +1563,18 @@ export default function App() {
                     Hospital Pro
                   </span>
                   <span aria-hidden="true">/</span>
-                  <span className="truncate">Quản lý lịch giờ chụp</span>
+                  <span className="truncate">
+                    {activeSection === 'relax' ? 'Giải trí' : 'Quản lý lịch giờ chụp'}
+                  </span>
                   <span aria-hidden="true">/</span>
                   <span className="font-bold text-[#0F172A] dark:text-slate-200 truncate">
-                    {activeMachineConfig.name}
+                    {activeSection === 'relax' ? 'Thư giãn | Relax' : activeMachineConfig.name}
                   </span>
                 </div>
                 <h1 className="text-base sm:text-[17px] font-extrabold tracking-tight text-[#083578] dark:text-slate-100 truncate">
-                  Hệ thống Điều phối Lịch Chụp X-quang
+                  {activeSection === 'relax'
+                    ? 'Menu Thư giãn – Relax & Play'
+                    : 'Hệ thống Điều phối Lịch Chụp X-quang'}
                 </h1>
               </div>
             </div>
@@ -1601,6 +1660,9 @@ export default function App() {
 
         {/* Main Content Viewport */}
         <main className="flex-1 px-4 sm:px-6 py-3.5 sm:py-4">
+          {activeSection === 'relax' ? (
+            <RelaxMenu onBackToApp={() => setActiveSection('schedule')} />
+          ) : (
           <div className="max-w-[1360px] mx-auto space-y-3.5">
             {/* ===== Radiology Department Hero Banner ===== */}
             {(() => {
@@ -1953,6 +2015,7 @@ export default function App() {
               />
             </div>
           </div>
+          )}
         </main>
       </div>
 

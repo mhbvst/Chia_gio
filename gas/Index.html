@@ -1986,7 +1986,7 @@
                     <span>Tới ca hiện tại</span>
                     <kbd class="kbd-hint">G</kbd>
                   </button>
-                  <button id="btnQuickPickEmpty" class="btn" type="button" title="Chọn nhanh giờ bắt đầu trống gần nhất với thời gian hiện tại (Phím T)" style="display:none;background:#ECFDF5;border-color:#86EFAC;color:#047857;">
+                  <button id="btnQuickPickEmpty" class="btn" type="button" title="Chọn nhanh giờ bắt đầu trống gần nhất, ưu tiên phút hiện tại nếu chưa được đánh dấu (Phím T)" style="display:none;background:#ECFDF5;border-color:#86EFAC;color:#047857;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:#059669;flex-shrink:0;" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
                     <span>Chọn nhanh trống</span>
                     <kbd class="kbd-hint" style="border-color:#86EFAC;color:#047857;">T</kbd>
@@ -4530,12 +4530,24 @@
       $("btnJumpNow").addEventListener("click", triggerJumpToNow);
 
       var quickPickPending = null;
+      function isBetterQuickPick(cand, currentBest) {
+        if (!currentBest) return true;
+        if (cand.isCurrentMinute !== currentBest.isCurrentMinute) {
+          return cand.isCurrentMinute;
+        }
+        if (cand.absDiff !== currentBest.absDiff) {
+          return cand.absDiff < currentBest.absDiff;
+        }
+        return cand.diffSec >= 0 && currentBest.diffSec < 0;
+      }
+
       function findNearestEmptySlot() {
         var mCfg = MACHINES[activeMachine];
         if (!mCfg || !mCfg.rows) return null;
         var mSlots = statesByMachine[activeMachine] || {};
         var p = getVNParts();
         var nowSec = p.hour * 3600 + p.minute * 60 + p.second;
+        var nowMin = Math.floor(nowSec / 60);
         var best = null;
         for (var i = 0; i < mCfg.rows.length; i++) {
           var row = mCfg.rows[i];
@@ -4545,9 +4557,9 @@
               var mMin = parseHHMM(row.morningStart);
               if (mMin !== null) {
                 var diffM = mMin * 60 - nowSec;
-                var absM = Math.abs(diffM);
-                if (!best || absM < best.absDiff || (absM === best.absDiff && diffM >= 0 && best.diffSec < 0)) {
-                  best = { row: row, session: "m", slotKey: mKey, startTime: row.morningStart, endTime: row.morningEnd, diffSec: diffM, absDiff: absM };
+                var candM = { row: row, session: "m", slotKey: mKey, startTime: row.morningStart, endTime: row.morningEnd, diffSec: diffM, absDiff: Math.abs(diffM), isCurrentMinute: mMin === nowMin };
+                if (isBetterQuickPick(candM, best)) {
+                  best = candM;
                 }
               }
             }
@@ -4558,9 +4570,9 @@
               var aMin = parseHHMM(row.afternoonStart);
               if (aMin !== null) {
                 var diffA = aMin * 60 - nowSec;
-                var absA = Math.abs(diffA);
-                if (!best || absA < best.absDiff || (absA === best.absDiff && diffA >= 0 && best.diffSec < 0)) {
-                  best = { row: row, session: "a", slotKey: aKey, startTime: row.afternoonStart, endTime: row.afternoonEnd, diffSec: diffA, absDiff: absA };
+                var candA = { row: row, session: "a", slotKey: aKey, startTime: row.afternoonStart, endTime: row.afternoonEnd, diffSec: diffA, absDiff: Math.abs(diffA), isCurrentMinute: aMin === nowMin };
+                if (isBetterQuickPick(candA, best)) {
+                  best = candA;
                 }
               }
             }
@@ -4583,7 +4595,8 @@
         quickPickPending = best;
         var sLabel = best.session === "m" ? "Ca Sáng" : "Ca Chiều";
         var note = "Trùng thời gian hiện tại";
-        if (best.diffSec > 60) note = "Còn khoảng " + Math.round(best.diffSec / 60) + " phút nữa so với hiện tại";
+        if (best.diffSec !== 0 && best.isCurrentMinute) note = "Trùng phút hiện tại (đã qua " + Math.abs(best.diffSec) + " giây)";
+        else if (best.diffSec > 60) note = "Còn khoảng " + Math.round(best.diffSec / 60) + " phút nữa so với hiện tại";
         else if (best.diffSec > 0) note = "Còn " + best.diffSec + " giây nữa so với hiện tại";
         else if (best.diffSec < -60) note = "Đã qua khoảng " + Math.round(Math.abs(best.diffSec) / 60) + " phút so với hiện tại";
         else if (best.diffSec < 0) note = "Đã qua " + Math.abs(best.diffSec) + " giây so với hiện tại";
